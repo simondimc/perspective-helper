@@ -54,7 +54,7 @@ export const TYPE_LABELS: Record<ObjectType, string> = {
   sphere: 'Krogla',
   cylinder: 'Valj',
   cone: 'Stožec',
-  figure: 'Figura',
+  figure: 'Moški',
   woman: 'Ženska',
   dog: 'Pes',
   horse: 'Konj',

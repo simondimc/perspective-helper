@@ -122,3 +122,12 @@ input.picker { width: 28px; height: 24px; padding: 0; border: 0; background: non
 .popover.sizepop { display: grid; gap: 8px; width: 210px; grid-template-columns: 1fr; }
 .sizepop input { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; width: 100%; box-sizing: border-box; }
 .sizepop .btn { width: 100%; }
+
+.sceneseg { gap: 2px; }
+.scenesel { background: transparent; color: var(--text); border: 0; padding: 6px 4px; max-width: 150px; font: inherit; cursor: pointer; }
+.scenesel option { background: #2a2a2e; color: #e6e6e8; }
+.scenerow { display: flex; align-items: center; gap: 4px; background: var(--panel-2); border-radius: 7px; padding: 2px 4px; border: 1px solid transparent; }
+.scenerow.on { border-color: var(--accent); }
+.scenerow .nm { flex: 1; border: 0; background: transparent; color: var(--text); text-align: left; padding: 6px 6px; cursor: pointer; }
+.scenerow .mini { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 4px 6px; }
+.scenerow .mini:hover { color: var(--text); }

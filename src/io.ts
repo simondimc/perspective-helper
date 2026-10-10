@@ -35,7 +35,8 @@ function parseObjects(raw: unknown): ObjectParams[] {
       ...(opening ? { opening: { w: opening.w, h: opening.h, x: opening.x, y: opening.y } } : {}),
       id: typeof o.id === 'string' && o.id ? o.id : `o${i}`,
       type: o.type as ObjectType,
-      name: typeof o.name === 'string' ? o.name : String(o.type),
+      // preimenovanje: moška figura se je prej imenovala »Figura«
+      name: o.type === 'figure' && o.name === 'Figura' ? 'Moški' : typeof o.name === 'string' ? o.name : String(o.type),
       position: [...o.position] as Triple,
       rotation: [...o.rotation] as Triple,
       size: o.size.map((n) => Math.max(0.01, n)) as Triple,
@@ -83,24 +84,158 @@ export function resetScene(state: AppState, store: ObjectStore): void {
   store.load(defaultObjects());
 }
 
-export function saveLocal(state: AppState, store: ObjectStore): boolean {
+// ---------------------------------------------------------------- več scen v brskalniku
+
+export interface SceneMeta {
+  id: string;
+  name: string;
+  updated: number;
+}
+
+export interface SceneIndex {
+  current: string;
+  items: SceneMeta[];
+}
+
+const INDEX_KEY = 'perspective-helper:scenes';
+const sceneKey = (id: string) => `${STORAGE_KEY}:${id}`;
+const newSceneId = () => `s${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
+
+let indexCache: SceneIndex | null = null;
+
+/** Kazalo scen; ob prvem zagonu prenese starejšo (enojno) sceno kot »Scena 1«. */
+export function getIndex(): SceneIndex {
+  if (indexCache) return indexCache;
+  let idx: SceneIndex | null = null;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(serialize(state, store)));
+    const raw = localStorage.getItem(INDEX_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d && Array.isArray(d.items) && d.items.length && typeof d.current === 'string') idx = d;
+    }
+  } catch {
+    /* neveljavno kazalo */
+  }
+  if (!idx) {
+    const id = newSceneId();
+    idx = { current: id, items: [{ id, name: 'Scena 1', updated: Date.now() }] };
+    try {
+      const old = localStorage.getItem(STORAGE_KEY);
+      if (old) {
+        localStorage.setItem(sceneKey(id), old);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      /* brez shranjevanja */
+    }
+    try {
+      localStorage.setItem(INDEX_KEY, JSON.stringify(idx));
+    } catch {
+      /* brez shranjevanja */
+    }
+  }
+  if (!idx.items.some((m) => m.id === idx!.current)) idx.current = idx.items[0].id;
+  indexCache = idx;
+  return idx;
+}
+
+function writeIndex(): void {
+  try {
+    localStorage.setItem(INDEX_KEY, JSON.stringify(getIndex()));
+  } catch {
+    /* brez shranjevanja */
+  }
+}
+
+export const currentSceneId = (): string => getIndex().current;
+
+export const currentSceneName = (): string => getIndex().items.find((m) => m.id === getIndex().current)?.name ?? 'scena';
+
+/** Ime scene, primerno za ime datoteke (brez posebnih znakov). */
+export function fileSafeName(name: string = currentSceneName()): string {
+  const base = name
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return base || 'scena';
+}
+
+export function saveLocal(state: AppState, store: ObjectStore): boolean {
+  const idx = getIndex();
+  try {
+    localStorage.setItem(sceneKey(idx.current), JSON.stringify(serialize(state, store)));
+    const m = idx.items.find((x) => x.id === idx.current);
+    if (m) m.updated = Date.now();
+    writeIndex();
     return true;
   } catch {
     return false;
   }
 }
 
+/** Naloži trenutno sceno; false, če zanjo ni shranjenih podatkov (uporabi se privzeta). */
 export function loadLocal(state: AppState, store: ObjectStore): boolean {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(sceneKey(getIndex().current));
     if (!raw) return false;
     applyScene(JSON.parse(raw), state, store);
     return true;
   } catch {
     return false;
   }
+}
+
+/** Nova scena v kazalu; `data` so začetni podatki (null = privzeta scena). Ne preklopi nanjo. */
+export function createScene(name: string, data: SceneFile | null): string {
+  const id = newSceneId();
+  getIndex().items.push({ id, name, updated: Date.now() });
+  if (data) {
+    try {
+      localStorage.setItem(sceneKey(id), JSON.stringify(data));
+    } catch {
+      /* brez shranjevanja */
+    }
+  }
+  writeIndex();
+  return id;
+}
+
+export function setCurrentScene(id: string): void {
+  const idx = getIndex();
+  if (idx.items.some((m) => m.id === id)) idx.current = id;
+  writeIndex();
+}
+
+export function renameScene(id: string, name: string): void {
+  const m = getIndex().items.find((x) => x.id === id);
+  if (m && name.trim()) m.name = name.trim();
+  writeIndex();
+}
+
+/** Izbriše sceno; vrne id scene, ki je zdaj trenutna. Zadnje scene ne izbriše, ampak jo nadomesti z novo privzeto. */
+export function deleteScene(id: string): string {
+  const idx = getIndex();
+  try {
+    localStorage.removeItem(sceneKey(id));
+  } catch {
+    /* brez shranjevanja */
+  }
+  idx.items = idx.items.filter((m) => m.id !== id);
+  if (!idx.items.length) {
+    const nid = newSceneId();
+    idx.items.push({ id: nid, name: 'Scena 1', updated: Date.now() });
+  }
+  if (!idx.items.some((m) => m.id === idx.current)) idx.current = idx.items[0].id;
+  writeIndex();
+  return idx.current;
+}
+
+/** Podatki prazne scene (brez predmetov, privzeta kamera in luč). */
+export function blankSceneFile(): SceneFile {
+  const d = defaultState();
+  return { version: FILE_VERSION, objects: [], camera: d.camera, light: d.light, guides: d.guides, view: d.view };
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {
@@ -116,7 +251,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
 
 export function downloadScene(state: AppState, store: ObjectStore): void {
   const json = JSON.stringify(serialize(state, store), null, 2);
-  downloadBlob(new Blob([json], { type: 'application/json' }), 'perspektiva-scena.json');
+  downloadBlob(new Blob([json], { type: 'application/json' }), `${fileSafeName()}.json`);
 }
 
 export function pickSceneFile(): Promise<unknown> {

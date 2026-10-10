@@ -2,7 +2,7 @@ import './ui.css';
 import { ASPECTS } from './camera';
 import { Rig, axesOf, limitsOf } from './figure';
 import { isPosable, rigOf } from './rigs';
-import { applyScene, downloadBlob, downloadScene, pickSceneFile, resetScene, saveLocal } from './io';
+import { applyScene, blankSceneFile, createScene, currentSceneId, deleteScene, downloadBlob, downloadScene, fileSafeName, getIndex, loadLocal, pickSceneFile, renameScene, resetScene, saveLocal, serialize, setCurrentScene } from './io';
 import { ANIMAL_TYPES } from './animalRigs';
 import { ObjectStyle, ObjectType, TYPE_LABELS } from './objects';
 import { DEFAULT_OPENING, clampOpening, isWallType } from './wall';
@@ -197,7 +197,102 @@ export class UI {
     });
     this.syncs.push(() => btns.forEach(([m, b]) => b.classList.toggle('on', view.transformMode === m && !view.cameraSelected && !view.selectedJoint)));
     bar.append(this.tools);
+    bar.append(this.sceneSwitcher());
     this.root.append(bar);
+  }
+
+  // ---- več scen ----
+
+  private switchScene(id: string): void {
+    if (id === currentSceneId()) return;
+    clearTimeout(this.saveTimer);
+    saveLocal(this.state, this.view.store);
+    setCurrentScene(id);
+    if (!loadLocal(this.state, this.view.store)) resetScene(this.state, this.view.store);
+    this.afterLoad();
+  }
+
+  private newScene(kind: 'blank' | 'default' | 'copy'): void {
+    const idx = getIndex();
+    const base = kind === 'copy' ? `${idx.items.find((m) => m.id === idx.current)?.name ?? 'Scena'} (kopija)` : `Scena ${idx.items.length + 1}`;
+    const name = prompt('Ime nove scene', base);
+    if (name === null) return;
+    clearTimeout(this.saveTimer);
+    saveLocal(this.state, this.view.store);
+    const data = kind === 'blank' ? blankSceneFile() : kind === 'copy' ? serialize(this.state, this.view.store) : null;
+    this.switchScene(createScene(name.trim() || base, data));
+  }
+
+  /** Izbirnik scene v zgornji vrstici: preklop in hitro dodajanje. */
+  private sceneSwitcher(): HTMLElement {
+    const box = el('div', 'seg sceneseg');
+    const sel = el('select', 'scenesel');
+    sel.title = 'Scena';
+    let sig = '';
+    this.syncs.push(() => {
+      const idx = getIndex();
+      const next = idx.items.map((m) => `${m.id}:${m.name}`).join('|') + `#${idx.current}`;
+      if (next === sig) return;
+      sig = next;
+      sel.replaceChildren(...idx.items.map((m) => new Option(m.name, m.id)));
+      sel.value = idx.current;
+    });
+    sel.onchange = () => this.switchScene(sel.value);
+    const add = el('button', '', '+');
+    add.title = 'Nova scena';
+    add.onclick = () => this.newScene('blank');
+    box.append(sel, add);
+    return box;
+  }
+
+  /** Kartica z vsemi scenami: preklop, preimenovanje, brisanje, podvajanje. */
+  private sceneList(): HTMLElement {
+    const list = el('div', 'objlist');
+    let sig = '';
+    this.syncs.push(() => {
+      const idx = getIndex();
+      const next = idx.items.map((m) => `${m.id}:${m.name}`).join('|') + `#${idx.current}`;
+      if (next === sig) return;
+      sig = next;
+      list.replaceChildren();
+      for (const m of idx.items) {
+        const row = el('div', `scenerow${m.id === idx.current ? ' on' : ''}`);
+        const name = el('button', 'nm', m.name);
+        name.onclick = () => this.switchScene(m.id);
+        const ren = el('button', 'mini', '✎');
+        ren.title = 'Preimenuj';
+        ren.onclick = () => {
+          const n = prompt('Novo ime scene', m.name);
+          if (n !== null && n.trim()) {
+            renameScene(m.id, n);
+            this.sync();
+          }
+        };
+        const del = el('button', 'mini', '🗑');
+        del.title = 'Izbriši sceno';
+        del.onclick = () => {
+          if (!confirm(`Izbrišem sceno »${m.name}«?`)) return;
+          const wasCurrent = m.id === currentSceneId();
+          deleteScene(m.id);
+          if (wasCurrent) {
+            if (!loadLocal(this.state, this.view.store)) resetScene(this.state, this.view.store);
+            this.afterLoad();
+          } else this.sync();
+        };
+        row.append(name, ren, del);
+        list.append(row);
+      }
+    });
+    const btns = el('div', 'btns');
+    const mk = (label: string, fn: () => void) => {
+      const b = el('button', 'btn', label);
+      b.onclick = fn;
+      btns.append(b);
+    };
+    mk('+ Prazna', () => this.newScene('blank'));
+    mk('+ Privzeta', () => this.newScene('default'));
+    mk('Podvoji', () => this.newScene('copy'));
+    return this.card('Scene', false, list, btns);
   }
 
   private buildAddbar(): void {
@@ -209,7 +304,7 @@ export class UI {
       b.onclick = () => add(t);
       this.addbar.append(b);
     };
-    const first: Array<[ObjectType, string]> = [['box', 'Škatla'], ['sphere', 'Krogla'], ['cylinder', 'Valj'], ['cone', 'Stožec'], ['figure', 'Figura'], ['woman', 'Ženska']];
+    const first: Array<[ObjectType, string]> = [['box', 'Škatla'], ['sphere', 'Krogla'], ['cylinder', 'Valj'], ['cone', 'Stožec'], ['figure', 'Moški'], ['woman', 'Ženska']];
     // figure: pred dodajanjem izberete višino
     const sizePop = el('div', 'popover sizepop');
     sizePop.hidden = true;
@@ -497,14 +592,14 @@ export class UI {
     files.append(
       btn('Shrani JSON', () => downloadScene(state, view.store)),
       btn('Odpri JSON', async () => { applyScene(await pickSceneFile(), state, view.store); this.afterLoad(); }),
-      btn('PNG + vodila', async () => downloadBlob(await view.exportPng(2400, true), 'kader-z-vodili.png')),
-      btn('PNG čisto', async () => downloadBlob(await view.exportPng(2400, false), 'kader.png')),
+      btn('PNG + vodila', async () => downloadBlob(await view.exportPng(2400, true), `${fileSafeName()}-kader-z-vodili.png`)),
+      btn('PNG čisto', async () => downloadBlob(await view.exportPng(2400, false), `${fileSafeName()}-kader.png`)),
     );
     const reset = btn('Ponastavi sceno', () => { if (confirm('Ponastavim sceno na začetno?')) { resetScene(state, view.store); this.afterLoad(); } });
     reset.style.color = 'var(--muted)';
     const fileCard = this.card('Datoteka', false, files, reset);
 
-    side.append(this.objectList(), this.poseCard(), camCard, lightCard, guidesCard, viewCard, fileCard);
+    side.append(this.sceneList(), this.objectList(), this.poseCard(), camCard, lightCard, guidesCard, viewCard, fileCard);
     this.root.append(side, toggle);
   }
 
