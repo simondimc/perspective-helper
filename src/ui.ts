@@ -1,8 +1,9 @@
 import './ui.css';
 import { ASPECTS } from './camera';
-import { JOINT_LABELS, JointName, LIMITS, POSES } from './figure';
+import { JOINT_LABELS, isFigureType, JointName, LIMITS, POSES } from './figure';
 import { applyScene, downloadBlob, downloadScene, pickSceneFile, resetScene, saveLocal } from './io';
 import { ObjectStyle, ObjectType } from './objects';
+import { DEFAULT_OPENING, clampOpening, isWallType } from './wall';
 import { PROJECTION_LABELS } from './projection';
 import { SceneView, TransformMode, ViewMode } from './scene';
 import { AppState } from './state';
@@ -15,6 +16,15 @@ const ICONS: Record<string, string> = {
   cylinder: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/>',
   cone: '<path d="M12 3 5 18c0 1.7 3.1 3 7 3s7-1.3 7-3z"/><path d="M5 18c0 1.7 3.1 3 7 3s7-1.3 7-3"/>',
   figure: '<circle cx="12" cy="5" r="2.5"/><path d="M8 21v-7l-2-3V9h12v2l-2 3v7M12 9v7"/>',
+  woman: '<circle cx="12" cy="5" r="2.5"/><path d="M12 8l-4.5 10h9zM10 18v3M14 18v3"/>',
+  table: '<path d="M3 9h18M5 9v11M19 9v11M7 9v6M17 9v6"/>',
+  chair: '<path d="M7 4v16M7 12h10v8M17 12v8M7 4h2"/>',
+  wall: '<path d="M3 5h18v14H3zM3 10h18M3 15h18M9 5v5M15 10v5M9 15v4"/>',
+  wallDoor: '<path d="M4 4h16v16H4zM9 20V10h6v10"/>',
+  wallWindow: '<path d="M4 4h16v16H4zM8 8h8v6H8z"/>',
+  elephant: '<path d="M4 14c0-4 3-6 7-6 4 0 7 2 7 6v6M4 14v6M8 14v6M14 14v6M18 14v6M18 12c2 0 3 1 3 4M4 11c-1-2 0-4 1-4"/>',
+  horse: '<path d="M3 15h12l1-4 2-4 2 1-1 3-1 1v8M5 15v6M8 15v6M13 15v6M16 15v6M18 7l-1-3"/>',
+  dog: '<path d="M3 13h11l2-4h3l2 2-2 1v3M5 13v7M8 13v7M13 13v7M16 12v8M16 9l-1-3"/>',
   translate: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>',
   rotate: '<path d="M20 12a8 8 0 1 1-3-6.2M20 4v5h-5"/>',
   scale: '<path d="M4 20 20 4M14 4h6v6M10 20H4v-6"/>',
@@ -187,7 +197,7 @@ export class UI {
 
   private buildAddbar(): void {
     const { view } = this;
-    const types: Array<[ObjectType, string]> = [['box', 'Škatla'], ['sphere', 'Krogla'], ['cylinder', 'Valj'], ['cone', 'Stožec'], ['figure', 'Figura']];
+    const types: Array<[ObjectType, string]> = [['box', 'Škatla'], ['sphere', 'Krogla'], ['cylinder', 'Valj'], ['cone', 'Stožec'], ['figure', 'Figura'], ['woman', 'Ženska'], ['dog', 'Pes'], ['horse', 'Konj'], ['elephant', 'Slon'], ['wall', 'Stena'], ['wallDoor', 'Stena z vrati'], ['wallWindow', 'Stena z oknom'], ['table', 'Miza'], ['chair', 'Stol']];
     for (const [t, title] of types) {
       const b = el('button', '', icon(t));
       b.title = `Dodaj: ${title}`;
@@ -383,7 +393,7 @@ export class UI {
     const { store } = this.view;
     const fig = () => {
       const p = store.selected();
-      return p && p.type === 'figure' ? p : undefined;
+      return p && isFigureType(p.type) ? p : undefined;
     };
     const presets = el('div', 'chips');
     for (const name of Object.keys(POSES)) {
@@ -614,6 +624,37 @@ export class UI {
     add('Širina', 'sx', 0.05, 8, 0.05, 'm');
     add('Višina', 'sy', 0.05, 8, 0.05, 'm');
     add('Globina', 'sz', 0.05, 8, 0.05, 'm');
+    // odprtina v steni (vrata/okno)
+    const wallSel = () => {
+      const p = view.store.selected();
+      return p && isWallType(p.type) ? p : undefined;
+    };
+    const addOp = (label: string, key: 'w' | 'h' | 'x' | 'y', min: number, max: number) =>
+      bar.append(
+        this.slider(
+          label,
+          min,
+          max,
+          0.05,
+          () => {
+            const p = wallSel();
+            return p ? clampOpening(p.size, { ...DEFAULT_OPENING[p.type as 'wallDoor' | 'wallWindow'], ...p.opening })[key] : 0;
+          },
+          (v) => {
+            const p = wallSel();
+            if (!p) return;
+            const cur = clampOpening(p.size, { ...DEFAULT_OPENING[p.type as 'wallDoor' | 'wallWindow'], ...p.opening });
+            view.store.update(p.id, { opening: { ...cur, [key]: v } });
+          },
+          (v) => v.toFixed(2),
+          () => !!wallSel(),
+          { unit: 'm', decimals: 2 },
+        ),
+      );
+    addOp('Odprtina: širina', 'w', 0.2, 6);
+    addOp('Odprtina: višina', 'h', 0.2, 4);
+    addOp('Odmik X', 'x', -3, 3);
+    addOp('Dvig od tal', 'y', 0, 3);
     const lift = el('button', '', icon('lift'));
     lift.title = 'Dvig: povleci objekt navpično (ali drži Shift)';
     lift.onclick = () => {

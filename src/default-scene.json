@@ -1,0 +1,309 @@
+{
+  "version": 1,
+  "objects": [
+    {
+      "pose": {
+        "torso": [
+          0.15872250528303852,
+          -5.765958528672775,
+          -1.5714862498947058
+        ],
+        "neck": [
+          0,
+          0,
+          0
+        ],
+        "shoulderL": [
+          0,
+          0,
+          0
+        ],
+        "shoulderR": [
+          0,
+          0,
+          0
+        ],
+        "elbowL": [
+          0,
+          0,
+          0
+        ],
+        "elbowR": [
+          0,
+          0,
+          0
+        ],
+        "hipL": [
+          0,
+          0,
+          0
+        ],
+        "hipR": [
+          0,
+          0,
+          0
+        ],
+        "kneeL": [
+          0,
+          0,
+          0
+        ],
+        "kneeR": [
+          0,
+          0,
+          0
+        ]
+      },
+      "id": "omv2o97dn0",
+      "type": "figure",
+      "name": "Figura",
+      "position": [
+        6.188640438845237,
+        0.875,
+        5.832833385215887
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        0.55,
+        1.75,
+        0.3
+      ]
+    },
+    {
+      "pose": {},
+      "id": "omv2phszk0",
+      "type": "dog",
+      "name": "Pes",
+      "position": [
+        6.963152939323706,
+        0.365,
+        5.845724912734641
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        0.26,
+        0.73,
+        1.14
+      ]
+    },
+    {
+      "pose": {},
+      "id": "omv2pjme50",
+      "type": "woman",
+      "name": "Ženska",
+      "position": [
+        7.890850703163005,
+        0.85,
+        5.8914850684440525
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        0.5,
+        1.7,
+        0.28
+      ]
+    },
+    {
+      "pose": {},
+      "id": "omv2plyow0",
+      "type": "horse",
+      "name": "Konj",
+      "position": [
+        4.811046367999071,
+        1.1,
+        6.563886141046532
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        0.6,
+        2.2,
+        2.54
+      ]
+    },
+    {
+      "pose": {},
+      "id": "omv2pp85l0",
+      "type": "elephant",
+      "name": "Slon",
+      "position": [
+        9.759623130572718,
+        1.7000000476837158,
+        6.879000175082645
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        1.8,
+        3.4,
+        5.8
+      ]
+    },
+    {
+      "pose": {},
+      "id": "omv2ps5570",
+      "type": "wallDoor",
+      "name": "Stena z vrati",
+      "position": [
+        7.054821668056373,
+        1.3,
+        -1.056540389530766
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3,
+        2.6,
+        0.2
+      ]
+    },
+    {
+      "pose": {},
+      "id": "omv2pscvg1",
+      "type": "wallWindow",
+      "name": "Stena z oknom",
+      "position": [
+        3.511110673997218,
+        1.3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3,
+        2.6,
+        0.2
+      ]
+    },
+    {
+      "pose": {},
+      "id": "omv2pu4lf0",
+      "type": "table",
+      "name": "Miza",
+      "position": [
+        6.662442164998913,
+        0.375,
+        8.09894035916307
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        1.4,
+        0.75,
+        0.8
+      ]
+    },
+    {
+      "pose": {},
+      "id": "omv2puexm1",
+      "type": "chair",
+      "name": "Stol",
+      "position": [
+        8.244006856120752,
+        0.45,
+        9.20188538423205
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        0.45,
+        0.9,
+        0.45
+      ]
+    },
+    {
+      "id": "omv2pv84k0",
+      "type": "wall",
+      "name": "Stena",
+      "position": [
+        10.639402356269137,
+        1.3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3,
+        2.6,
+        0.2
+      ]
+    }
+  ],
+  "camera": {
+    "mode": "3pt",
+    "x": 7.807155228266476,
+    "z": 13.037630922709548,
+    "eyeHeight": 2.65,
+    "yaw": 0,
+    "pitch": -14.5,
+    "roll": 0,
+    "focalMm": 24,
+    "shiftY": 0,
+    "aspect": "4:3",
+    "projection": "rectilinear"
+  },
+  "light": {
+    "azimuth": -25,
+    "elevation": 45,
+    "ratio": 4,
+    "exposure": 0.84
+  },
+  "guides": {
+    "horizon": true,
+    "vpX": true,
+    "vpY": true,
+    "vpZ": true,
+    "fan": true,
+    "fanDensity": 10,
+    "objectVps": true,
+    "objectFan": false,
+    "labels": "xyz",
+    "showFocal": false,
+    "boxes": false
+  },
+  "view": {
+    "gridInFrame": false,
+    "snap": false,
+    "paper": 0.2,
+    "lockFocal": false,
+    "objectStyle": "solid",
+    "ao": 0.05,
+    "layout": "stacked",
+    "whiteBg": true,
+    "floorColor": "#bccddc",
+    "edgeWidth": 1
+  }
+}

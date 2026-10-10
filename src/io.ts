@@ -16,7 +16,7 @@ export function serialize(state: AppState, store: ObjectStore): SceneFile {
   return { version: FILE_VERSION, objects: structuredClone(store.list()), camera: { ...state.camera }, light: { ...state.light }, guides: { ...state.guides }, view: { ...state.view } };
 }
 
-const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure'];
+const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair'];
 const isTriple = (v: unknown): v is Triple => Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && isFinite(n));
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -28,8 +28,10 @@ function parseObjects(raw: unknown): ObjectParams[] {
     }
     const pose: Pose = {};
     if (isObj(o.pose)) for (const j of JOINTS) if (isTriple(o.pose[j])) pose[j] = [...(o.pose[j] as Triple)];
+    const opening = isObj(o.opening) && ['w', 'h', 'x', 'y'].every((k) => typeof (o.opening as Record<string, unknown>)[k] === 'number') ? (o.opening as { w: number; h: number; x: number; y: number }) : undefined;
     return {
       pose,
+      ...(opening ? { opening: { w: opening.w, h: opening.h, x: opening.x, y: opening.y } } : {}),
       id: typeof o.id === 'string' && o.id ? o.id : `o${i}`,
       type: o.type as ObjectType,
       name: typeof o.name === 'string' ? o.name : String(o.type),

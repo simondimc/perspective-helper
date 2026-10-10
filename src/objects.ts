@@ -17,9 +17,14 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
-import { Angles, JOINTS, JointName, Pose, figureGeometry, jointFrames, jointPosition, toMeshSpace } from './figure';
+import { dogGeometry } from './dog';
+import { elephantGeometry } from './elephant';
+import { chairGeometry, tableGeometry } from './furniture';
+import { DEFAULT_OPENING, Opening, isWallType, wallGeometry } from './wall';
+import { horseGeometry } from './horse';
+import { Angles, JOINTS, JointName, Pose, figureGeometry, isFigureType, jointFrames, jointPosition, toMeshSpace, variantOf } from './figure';
 
-export type ObjectType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure';
+export type ObjectType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair';
 
 /** Prikaz objektov: mavec, samo robovi (brez ploskev) ali oboje. */
 export type ObjectStyle = 'solid' | 'edges' | 'both';
@@ -38,6 +43,8 @@ export interface ObjectParams {
   size: Triple;
   /** Poza figure (koti sklepov); manjkajoči sklepi so v mirovanju. */
   pose?: Pose;
+  /** Odprtina v steni (vrata/okno); manjkajoče vrednosti so privzete. */
+  opening?: Opening;
 }
 
 export const TYPE_LABELS: Record<ObjectType, string> = {
@@ -46,6 +53,15 @@ export const TYPE_LABELS: Record<ObjectType, string> = {
   cylinder: 'Valj',
   cone: 'Stožec',
   figure: 'Figura',
+  woman: 'Ženska',
+  dog: 'Pes',
+  horse: 'Konj',
+  elephant: 'Slon',
+  wall: 'Stena',
+  wallDoor: 'Stena z vrati',
+  wallWindow: 'Stena z oknom',
+  table: 'Miza',
+  chair: 'Stol',
 };
 
 const DEFAULT_SIZE: Record<ObjectType, Triple> = {
@@ -53,7 +69,16 @@ const DEFAULT_SIZE: Record<ObjectType, Triple> = {
   sphere: [1, 1, 1],
   cylinder: [0.8, 1.5, 0.8],
   cone: [0.8, 1.5, 0.8],
-  figure: [0.55, 1.75, 0.3],
+  figure: [0.57, 1.8, 0.31],
+  woman: [0.5, 1.7, 0.28],
+  dog: [0.26, 0.73, 1.14],
+  horse: [0.6, 2.2, 2.54],
+  elephant: [1.8, 3.4, 5.8],
+  wall: [3, 2.6, 0.2],
+  wallDoor: [3, 2.6, 0.2],
+  wallWindow: [3, 2.6, 0.2],
+  table: [1.4, 0.75, 0.8],
+  chair: [0.45, 0.9, 0.45],
 };
 
 /** Vsi objekti si delijo isti beli mat material (mavčni videz). */
@@ -70,11 +95,21 @@ function circle(rx: number, rz: number, y: number, n = 48): number[] {
 }
 
 /** Robovi objekta (brez ploskev) za prikaz "žične" kocke, kot na skicah. */
-export function buildEdges(type: ObjectType, size: Triple, pose?: Pose): BufferGeometry {
+export function buildEdges(type: ObjectType, size: Triple, pose?: Pose, opening?: Opening): BufferGeometry {
   const [sx, sy, sz] = size;
   let pos: number[] = [];
-  if (type === 'box' || type === 'figure') {
-    return new EdgesGeometry(buildGeometry(type, size, pose), type === 'box' ? 1 : 35);
+  if (isWallType(type)) {
+    return new EdgesGeometry(buildGeometry(type, size, pose, opening), 1);
+  } else if (type === 'dog') {
+    return new EdgesGeometry(dogGeometry(size, true), 12);
+  } else if (type === 'horse') {
+    return new EdgesGeometry(horseGeometry(size, true), 12);
+  } else if (type === 'elephant') {
+    return new EdgesGeometry(elephantGeometry(size, true), 12);
+  } else if (type === 'table' || type === 'chair') {
+    return new EdgesGeometry(buildGeometry(type, size), 1);
+  } else if (type === 'box' || type === 'wall' || type === 'figure' || type === 'woman') {
+    return new EdgesGeometry(buildGeometry(type, size, pose), type === 'box' || type === 'wall' ? 1 : 35);
   } else if (type === 'sphere') {
     const n = 48;
     for (let i = 0; i < n; i++) {
@@ -99,10 +134,11 @@ export function buildEdges(type: ObjectType, size: Triple, pose?: Pose): BufferG
   return g;
 }
 
-export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose): BufferGeometry {
+export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, opening?: Opening): BufferGeometry {
   const [sx, sy, sz] = size;
   switch (type) {
     case 'box':
+    case 'wall':
       return new BoxGeometry(sx, sy, sz);
     case 'sphere':
       return new SphereGeometry(0.5, 64, 40).scale(sx, sy, sz);
@@ -112,6 +148,21 @@ export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose): Buff
       return new ConeGeometry(0.5, 1, 64).scale(sx, sy, sz);
     case 'figure':
       return figureGeometry(pose ?? {}, size);
+    case 'woman':
+      return figureGeometry(pose ?? {}, size, 'woman');
+    case 'dog':
+      return dogGeometry(size);
+    case 'horse':
+      return horseGeometry(size);
+    case 'elephant':
+      return elephantGeometry(size);
+    case 'table':
+      return tableGeometry(size);
+    case 'chair':
+      return chairGeometry(size);
+    case 'wallDoor':
+    case 'wallWindow':
+      return wallGeometry(size, { ...DEFAULT_OPENING[type], ...opening });
   }
 }
 
@@ -182,14 +233,14 @@ export class ObjectStore {
   }
 
   private createMesh(p: ObjectParams): Mesh {
-    const mesh = new Mesh(buildGeometry(p.type, p.size, p.pose), plasterMaterial);
+    const mesh = new Mesh(buildGeometry(p.type, p.size, p.pose, p.opening), plasterMaterial);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.userData.id = p.id;
     this.applyTransform(mesh, p);
     this.addEdges(mesh, p);
     this.applyStyle(mesh);
-    if (p.type === 'figure') this.addJoints(mesh, p);
+    if (isFigureType(p.type)) this.addJoints(mesh, p);
     return mesh;
   }
 
@@ -217,8 +268,9 @@ export class ObjectStore {
   private updateJoints(mesh: Mesh, p: ObjectParams): void {
     const group = mesh.getObjectByName('joints');
     if (!group) return;
-    const frames = jointFrames(p.pose ?? {});
-    for (const j of JOINTS) group.getObjectByName(j)!.position.copy(toMeshSpace(jointPosition(frames, j), p.size));
+    const v = variantOf(p.type);
+    const frames = jointFrames(p.pose ?? {}, v);
+    for (const j of JOINTS) group.getObjectByName(j)!.position.copy(toMeshSpace(jointPosition(frames, j), p.size, v));
   }
 
   /** Ročaji sklepov so vidni samo v urejevalniku in samo pri izbrani figuri. */
@@ -253,7 +305,7 @@ export class ObjectStore {
       old.geometry.dispose();
       mesh.remove(old);
     }
-    const lines = new LineSegments(buildEdges(p.type, p.size, p.pose), edgeOverlay);
+    const lines = new LineSegments(buildEdges(p.type, p.size, p.pose, p.opening), edgeOverlay);
     lines.name = 'edges';
     lines.renderOrder = 10;
     lines.raycast = () => {};
@@ -390,7 +442,7 @@ export class ObjectStore {
     if (!it) return;
     Object.assign(it.params, patch);
     it.mesh.geometry.dispose();
-    it.mesh.geometry = buildGeometry(it.params.type, it.params.size, it.params.pose);
+    it.mesh.geometry = buildGeometry(it.params.type, it.params.size, it.params.pose, it.params.opening);
     this.addEdges(it.mesh, it.params);
     this.applyStyle(it.mesh);
     this.applyTransform(it.mesh, it.params);

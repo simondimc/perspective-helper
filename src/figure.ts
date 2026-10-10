@@ -12,6 +12,10 @@ export const JOINTS: JointName[] = ['torso', 'neck', 'shoulderL', 'shoulderR', '
 export type Angles = [number, number, number];
 export type Pose = Partial<Record<JointName, Angles>>;
 
+export type Variant = 'man' | 'woman';
+export const isFigureType = (t: string | undefined): boolean => t === 'figure' || t === 'woman';
+export const variantOf = (t: string | undefined): Variant => (t === 'woman' ? 'woman' : 'man');
+
 interface JointDef {
   parent: JointName | null;
   pivot: [number, number, number];
@@ -31,6 +35,20 @@ const DEF: Record<JointName, JointDef> = {
   kneeL: { parent: 'hipL', pivot: [0.09, 0.4, 0], side: 1, kind: 'hinge-back' },
   kneeR: { parent: 'hipR', pivot: [-0.09, 0.4, 0], side: -1, kind: 'hinge-back' },
 };
+
+/** Ženska: ožja ramena in širši boki, zato so pivoti ramen in bokov drugje. */
+const DEF_W: Record<JointName, JointDef> = {
+  ...DEF,
+  shoulderL: { parent: 'torso', pivot: [0.2, 1.42, 0], side: 1, kind: 'limb' },
+  shoulderR: { parent: 'torso', pivot: [-0.2, 1.42, 0], side: -1, kind: 'limb' },
+  elbowL: { parent: 'shoulderL', pivot: [0.2, 1.12, 0], side: 1, kind: 'hinge-fwd' },
+  elbowR: { parent: 'shoulderR', pivot: [-0.2, 1.12, 0], side: -1, kind: 'hinge-fwd' },
+  hipL: { parent: null, pivot: [0.1, 0.8, 0], side: 1, kind: 'limb' },
+  hipR: { parent: null, pivot: [-0.1, 0.8, 0], side: -1, kind: 'limb' },
+  kneeL: { parent: 'hipL', pivot: [0.1, 0.4, 0], side: 1, kind: 'hinge-back' },
+  kneeR: { parent: 'hipR', pivot: [-0.1, 0.4, 0], side: -1, kind: 'hinge-back' },
+};
+const defs = (v: Variant): Record<JointName, JointDef> => (v === 'woman' ? DEF_W : DEF);
 
 /** Omejitve [min, max] posameznih kotov (stopinje). */
 export const LIMITS: Record<JointName, Array<[number, number]>> = {
@@ -121,17 +139,18 @@ export interface JointFrame {
 }
 
 /** Premik naprej po verigi sklepov (FK); enote so metri, izhodišče v tleh pod medenico. */
-export function jointFrames(pose: Pose): Record<JointName, JointFrame> {
+export function jointFrames(pose: Pose, variant: Variant = 'man'): Record<JointName, JointFrame> {
+  const DEFV = defs(variant);
   const out = {} as Record<JointName, JointFrame>;
   const calc = (j: JointName): JointFrame => {
     if (out[j]) return out[j];
-    const d = DEF[j];
+    const d = DEFV[j];
     const piv = new Vector3(...d.pivot);
     let parentWorld = new Matrix4();
     let parentPivot = new Vector3();
     if (d.parent) {
       parentWorld = calc(d.parent).world;
-      parentPivot = new Vector3(...DEF[d.parent].pivot);
+      parentPivot = new Vector3(...DEFV[d.parent].pivot);
     }
     const parent = parentWorld.clone().multiply(new Matrix4().makeTranslation(piv.x - parentPivot.x, piv.y - parentPivot.y, piv.z - parentPivot.z));
     const rot = new Matrix4().makeRotationFromQuaternion(jointQuaternion(j, pose[j] ?? [0, 0, 0]));
@@ -152,7 +171,36 @@ type Part = { joint: JointName | null; make: () => BufferGeometry; at: [number, 
 const cyl = (rt: number, rb: number, h: number) => () => new CylinderGeometry(rt, rb, h, 16);
 const box = (w: number, h: number, d: number) => () => new BoxGeometry(w, h, d);
 
-function parts(): Part[] {
+function partsWoman(): Part[] {
+  const ell = (rx: number, ry: number, rz: number) => () => new SphereGeometry(1, 16, 12).scale(rx, ry, rz);
+  const p: Part[] = [
+    { joint: null, make: box(0.34, 0.2, 0.2), at: [0, 0.85, 0] },
+    { joint: 'torso', make: box(0.25, 0.22, 0.17), at: [0, 1.05, 0] },
+    { joint: 'torso', make: box(0.3, 0.3, 0.19), at: [0, 1.3, 0] },
+    { joint: 'torso', make: ell(0.07, 0.065, 0.06), at: [0.075, 1.28, 0.09] },
+    { joint: 'torso', make: ell(0.07, 0.065, 0.06), at: [-0.075, 1.28, 0.09] },
+    { joint: 'neck', make: cyl(0.04, 0.045, 0.1), at: [0, 1.5, 0] },
+    { joint: 'neck', make: () => new SphereGeometry(1, 24, 16).scale(0.088, 0.11, 0.1), at: [0, 1.62, 0] },
+  ];
+  for (const s of [1, -1]) {
+    const sh = s === 1 ? 'shoulderL' : 'shoulderR';
+    const el = s === 1 ? 'elbowL' : 'elbowR';
+    const hp = s === 1 ? 'hipL' : 'hipR';
+    const kn = s === 1 ? 'kneeL' : 'kneeR';
+    p.push(
+      { joint: sh, make: cyl(0.04, 0.034, 0.3), at: [s * 0.2, 1.27, 0] },
+      { joint: el, make: cyl(0.034, 0.028, 0.28), at: [s * 0.2, 0.98, 0] },
+      { joint: el, make: box(0.045, 0.085, 0.03), at: [s * 0.2, 0.795, 0] },
+      { joint: hp, make: cyl(0.07, 0.052, 0.4), at: [s * 0.1, 0.6, 0] },
+      { joint: kn, make: cyl(0.05, 0.034, 0.38), at: [s * 0.1, 0.21, 0] },
+      { joint: kn, make: box(0.08, 0.055, 0.22), at: [s * 0.1, 0.03, 0.055] },
+    );
+  }
+  return p;
+}
+
+function parts(variant: Variant = 'man'): Part[] {
+  if (variant === 'woman') return partsWoman();
   const p: Part[] = [
     { joint: null, make: box(0.3, 0.18, 0.19), at: [0, 0.84, 0] },
     { joint: 'torso', make: box(0.34, 0.54, 0.2), at: [0, 1.2, 0] },
@@ -177,12 +225,13 @@ function parts(): Part[] {
 }
 
 /** Geometrija v metrih (višina 1,76 m v mirovanju), izhodišče v tleh pod medenico. */
-function rawGeometry(pose: Pose): BufferGeometry {
-  const frames = jointFrames(pose);
-  const geoms = parts().map((p) => {
+function rawGeometry(pose: Pose, variant: Variant = 'man'): BufferGeometry {
+  const frames = jointFrames(pose, variant);
+  const DEFV = defs(variant);
+  const geoms = parts(variant).map((p) => {
     const g = p.make().translate(...p.at);
     if (p.joint) {
-      const pivot = new Vector3(...DEF[p.joint].pivot);
+      const pivot = new Vector3(...DEFV[p.joint].pivot);
       g.applyMatrix4(frames[p.joint].world.clone().multiply(new Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z)));
     }
     return g;
@@ -190,23 +239,30 @@ function rawGeometry(pose: Pose): BufferGeometry {
   return mergeGeometries(geoms)!;
 }
 
-const restGeom = rawGeometry({});
-restGeom.computeBoundingBox();
-/** Okvir figure v mirovanju: središče in velikost, na katera se pri `size` normalizira. */
-export const REST_CENTER = restGeom.boundingBox!.getCenter(new Vector3());
-export const REST_SIZE = restGeom.boundingBox!.getSize(new Vector3());
-restGeom.dispose();
+const restBox = (v: Variant) => {
+  const g = rawGeometry({}, v);
+  g.computeBoundingBox();
+  const b = g.boundingBox!;
+  g.dispose();
+  return { center: b.getCenter(new Vector3()), size: b.getSize(new Vector3()) };
+};
+const REST = { man: restBox('man'), woman: restBox('woman') };
+/** Okvir figure v mirovanju (moški): središče in velikost, na katera se pri `size` normalizira. */
+export const REST_CENTER = REST.man.center;
+export const REST_SIZE = REST.man.size;
 
 /** Geometrija figure v pozi; središče in razmerja iz mirovanja, nato skalirana na `size`. */
-export function figureGeometry(pose: Pose, size: [number, number, number]): BufferGeometry {
-  const g = rawGeometry(pose);
-  g.translate(-REST_CENTER.x, -REST_CENTER.y, -REST_CENTER.z);
-  return g.scale(size[0] / REST_SIZE.x, size[1] / REST_SIZE.y, size[2] / REST_SIZE.z);
+export function figureGeometry(pose: Pose, size: [number, number, number], variant: Variant = 'man'): BufferGeometry {
+  const { center, size: rs } = REST[variant];
+  const g = rawGeometry(pose, variant);
+  g.translate(-center.x, -center.y, -center.z);
+  return g.scale(size[0] / rs.x, size[1] / rs.y, size[2] / rs.z);
 }
 
 /** Pretvori položaj iz prostora figure (metri) v lokalni prostor mesha. */
-export function toMeshSpace(v: Vector3, size: [number, number, number]): Vector3 {
-  return new Vector3((v.x - REST_CENTER.x) * (size[0] / REST_SIZE.x), (v.y - REST_CENTER.y) * (size[1] / REST_SIZE.y), (v.z - REST_CENTER.z) * (size[2] / REST_SIZE.z));
+export function toMeshSpace(v: Vector3, size: [number, number, number], variant: Variant = 'man'): Vector3 {
+  const { center, size: rs } = REST[variant];
+  return new Vector3((v.x - center.x) * (size[0] / rs.x), (v.y - center.y) * (size[1] / rs.y), (v.z - center.z) * (size[2] / rs.z));
 }
 
 export const hasParent = (j: JointName): JointName | null => DEF[j].parent;

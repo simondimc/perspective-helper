@@ -1,6 +1,7 @@
 import { CameraParams, DEFAULT_CAMERA } from './camera';
 import { DEFAULT_GUIDES, GuideSettings } from './guides';
 import { DEFAULT_LIGHT, LightParams } from './lighting';
+import preset from './default-scene.json';
 import { ObjectParams, ObjectStyle } from './objects';
 
 export interface ViewSettings {
@@ -33,20 +34,18 @@ export interface AppState {
   view: ViewSettings;
 }
 
+/** Začetni pogled (privzeta scena): vrednosti iz `default-scene.json`, manjkajoče dopolnijo privzete. */
+const BASE_VIEW: ViewSettings = { gridInFrame: true, snap: false, paper: 0.6, lockFocal: false, objectStyle: 'solid', ao: 0.6, layout: 'stacked', whiteBg: true, floorColor: '', edgeWidth: 2 };
+
 export function defaultState(): AppState {
   return {
-    camera: { ...DEFAULT_CAMERA },
-    light: { ...DEFAULT_LIGHT },
-    guides: { ...DEFAULT_GUIDES },
-    view: { gridInFrame: true, snap: false, paper: 0.6, lockFocal: false, objectStyle: 'solid', ao: 0.6, layout: 'stacked', whiteBg: true, floorColor: '', edgeWidth: 2 },
+    camera: { ...DEFAULT_CAMERA, ...(preset.camera as Partial<CameraParams>) },
+    light: { ...DEFAULT_LIGHT, ...(preset.light as Partial<LightParams>) },
+    guides: { ...DEFAULT_GUIDES, ...(preset.guides as Partial<GuideSettings>) },
+    view: { ...BASE_VIEW, ...(preset.view as Partial<ViewSettings>) },
   };
 }
 
 export function defaultObjects(): ObjectParams[] {
-  return [
-    { id: 'box1', type: 'box', name: 'Škatla', position: [-1.5, 0.6, 0], rotation: [0, 0, 0], size: [1.2, 1.2, 1.2] },
-    { id: 'box2', type: 'box', name: 'Škatla', position: [1.2, 0.5, -0.5], rotation: [0, -20, 0], size: [1.6, 1, 1] },
-    { id: 'fig1', type: 'figure', name: 'Figura', position: [-0.3, 0.875, 1], rotation: [0, 20, 0], size: [0.55, 1.75, 0.3] },
-    { id: 'cyl1', type: 'cylinder', name: 'Valj', position: [0.2, 0.75, 2.2], rotation: [0, 0, 0], size: [0.7, 1.5, 0.7] },
-  ];
+  return structuredClone(preset.objects) as unknown as ObjectParams[];
 }
