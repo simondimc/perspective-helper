@@ -65,7 +65,6 @@ export class UI {
     this.buildSidebar();
     this.buildSelbar();
     this.root.append(this.hint, this.stack);
-    new ResizeObserver(() => document.documentElement.style.setProperty('--dock-h', `${this.stack.offsetHeight}px`)).observe(this.stack);
     this.bindHotkeys();
 
     view.store.onChange(() => {
@@ -90,8 +89,8 @@ export class UI {
   // ---- gradniki ----
 
   private sync(): void {
-    this.poseSyncs.forEach((f) => f());
     this.syncs.forEach((f) => f());
+    this.poseSyncs.forEach((f) => f());
   }
 
   private changed(fn: () => void): void {
@@ -208,6 +207,7 @@ export class UI {
       const b = el('button', '', icon(t));
       b.title = `Dodaj: ${title}`;
       b.onclick = () => add(t);
+      this.addbar.append(b);
     };
     const first: Array<[ObjectType, string]> = [['box', 'Škatla'], ['sphere', 'Krogla'], ['cylinder', 'Valj'], ['cone', 'Stožec'], ['figure', 'Figura'], ['woman', 'Ženska']];
     first.forEach(([t, n]) => btn(t, n));
@@ -224,7 +224,7 @@ export class UI {
         pop.hidden = true;
       };
       pop.append(b);
-      this.addbar.append(b);
+    }
     ab.onclick = (e) => {
       e.stopPropagation();
       pop.hidden = !pop.hidden;
@@ -236,7 +236,6 @@ export class UI {
     this.addbar.append(ab, pop);
     const rest: Array<[ObjectType, string]> = [['wall', 'Stena'], ['wallDoor', 'Stena z vrati'], ['wallWindow', 'Stena z oknom'], ['table', 'Miza'], ['chair', 'Stol']];
     rest.forEach(([t, n]) => btn(t, n));
-    }
     this.root.append(this.addbar);
   }
 
@@ -711,6 +710,7 @@ export class UI {
   private syncSelection(): void {
     const p = this.view.store.selected();
     this.selbar.classList.toggle('show', !!p && !this.view.cameraSelected);
+    this.selName.textContent = p && !this.view.cameraSelected ? p.name : 'Ni izbranega predmeta';
     if (!p) return;
     this.sync();
   }

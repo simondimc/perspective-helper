@@ -1,3 +1,4 @@
+:root { --dock-h: 148px; }
 :root {
   --panel: rgba(30, 30, 33, 0.92);
   --panel-2: #2a2a2e;
@@ -58,8 +59,9 @@ select.sel { background: var(--panel-2); border: 1px solid var(--line); border-r
 .dial i { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: #ffd24d; box-shadow: 0 0 10px #ffd24daa; }
 .dial small { position: absolute; left: 0; right: 0; bottom: -17px; text-align: center; color: var(--muted); font-size: 11px; }
 
-#selbar, .floatbar { position: static; display: none; align-items: center; gap: 8px; background: var(--panel-2); border-radius: 10px; padding: 4px 10px; flex-wrap: wrap; justify-content: center; }
-#selbar.show, .floatbar.show { display: flex; }
+#selbar, .floatbar { position: static; display: flex; flex: none; height: 62px; box-sizing: border-box; align-items: center; gap: 12px; background: var(--panel-2); border-radius: 10px; padding: 4px 10px; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+#selbar > *, .floatbar > * { flex: none; }
+#selbar:not(.show) > :not(.name) { display: none; }
 .floatbar .row { width: 118px; gap: 1px; }
 .floatbar { gap: 12px; }
 .floatbar .row input[type=range] { height: 14px; }
@@ -91,10 +93,11 @@ input.picker { width: 28px; height: 24px; padding: 0; border: 0; background: non
 .floatbar label.pos input { width: 62px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 5px; }
 
 .floatbar.min > :not(.name) { display: none; }
-.floatbar.min { padding: 6px 14px; }
+.floatbar.min { padding: 4px 14px; }
 
 /* spodnja vrstica z nastavitvami: ne prekriva pogleda, ampak ga skrči */
-.bottomstack { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; padding: 6px 10px; background: var(--panel); border-top: 1px solid var(--line); pointer-events: auto; }
+/* spodnji trak ima stalno višino, da se pogled scene in kadra ne spreminja, ko se pokažejo ali skrijejo kontrole */
+.bottomstack { position: fixed; left: 0; right: 0; bottom: 0; height: var(--dock-h); box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; padding: 6px 10px; background: var(--panel); border-top: 1px solid var(--line); pointer-events: auto; overflow: hidden; }
 @media (min-width: 700px) { body.sb-open .bottomstack { right: 272px; } }
 #sidebar { bottom: calc(var(--dock-h, 0px) + 10px) !important; }
 #hint { bottom: calc(var(--dock-h, 0px) + 8px) !important; }
@@ -104,3 +107,7 @@ input.picker { width: 28px; height: 24px; padding: 0; border: 0; background: non
 .popover[hidden] { display: none; }
 .addbar .popover button { width: auto; height: auto; padding: 6px 8px; text-align: left; justify-content: flex-start; font-size: 12.5px; border-radius: 6px; background: var(--panel-2); }
 .addbar .popover button:hover { background: var(--accent); color: #fff; }
+
+/* prazen del stranske vrstice ne sme zakrivati scene */
+#sidebar { pointer-events: none; }
+#sidebar > * { pointer-events: auto; }

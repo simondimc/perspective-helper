@@ -136,7 +136,8 @@ export class SceneView {
   liftMode = false;
   /** Ročaji gizma, ki objekt dvigujejo; skriti, dokler objekt stoji na tleh. */
   private liftHandles: Array<{ parent: Object3D; child: Object3D }> = [];
-  private objDrag: { id: string; plane: Plane; offset: Vector3; vertical: boolean } | null = null;
+  private gizmoDown = false;
+  private objDrag: { id: string; plane: Plane; offset: Vector3; vertical: boolean; moved: boolean } | null = null;
   onCameraMoved: () => void = () => {};
   onModeChange: () => void = () => {};
   onSelectionChange: () => void = () => {};
@@ -243,6 +244,8 @@ export class SceneView {
     const endDrag = () => this.endObjectDrag();
     this.editorPane.addEventListener('pointerup', endDrag);
     this.editorPane.addEventListener('pointercancel', endDrag);
+    this.editorPane.addEventListener('lostpointercapture', endDrag);
+    window.addEventListener('blur', endDrag);
     this.editorPane.addEventListener('pointerdown', (e) => this.downPos.set(e.clientX, e.clientY));
     this.editorPane.addEventListener('dblclick', (e) => this.onDoubleClick(e));
     this.editorPane.addEventListener('pointerup', (e) => this.onPointerUp(e));
@@ -404,15 +407,18 @@ export class SceneView {
 
   private onPointerUp(e: PointerEvent): void {
     if (Math.hypot(e.clientX - this.downPos.x, e.clientY - this.downPos.y) > 5) return;
-    if (this.transform.axis) return;
-    const joint = this.pickJoint(e);
+    if (this.gizmoDown) {
+      this.gizmoDown = false;
+      return;
+    }
+    // izbira temelji na mestu pritiska (ne spusta): pri klikih ob robu predmeta kazalec ob spustu lahko zdrsne s predmeta in bi izbiro odstranil
+    const down = { clientX: this.downPos.x, clientY: this.downPos.y };
+    const joint = this.pickJoint(down);
     if (joint) {
       this.selectJoint(joint);
       return;
     }
-    const rect = this.editorPane.getBoundingClientRect();
-    const ndc = new Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(ndc, this.editorCamera);
+    this.paneRay(down);
     const hits = this.raycaster.intersectObjects([...this.store.group.children, this.rig], true);
     const hit = hits[0]?.object;
     if (!hit) {
@@ -428,7 +434,7 @@ export class SceneView {
     }
   }
 
-  private paneRay(e: PointerEvent): void {
+  private paneRay(e: { clientX: number; clientY: number }): void {
     const rect = this.editorPane.getBoundingClientRect();
     const ndc = new Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.editorCamera);
@@ -472,7 +478,7 @@ export class SceneView {
   }
 
   /** Klik na ročaj sklepa ima prednost pred telesom figure (ročaji so znotraj telesa, zato jih žarek sicer ne bi zadel prvih). */
-  private pickJoint(e: PointerEvent): JointName | null {
+  private pickJoint(e: { clientX: number; clientY: number }): JointName | null {
     const sel = this.store.selected();
     if (!sel || !isPosable(sel.type)) return null;
     const group = this.store.mesh(sel.id)?.getObjectByName('joints');
@@ -484,6 +490,8 @@ export class SceneView {
 
   /** Povlek objekta neposredno: po tleh (pogled od zgoraj ne dvigne objekta), s Shift ali v načinu dviga navpično. */
   private onObjectDragStart(e: PointerEvent): void {
+    // klik na gizem (os je pod kazalcem) ne sme spremeniti izbire; TransformControls ob spustu os ponastavi, zato si jo zapomnimo tukaj
+    this.gizmoDown = e.button === 0 && !!this.transform.axis;
     if (e.button !== 0 || this.transformMode !== 'translate' || this.cameraSelected || this.selectedJoint || this.transform.axis) return;
     if (this.pickJoint(e)) return;
     this.paneRay(e);
@@ -505,7 +513,7 @@ export class SceneView {
     } else {
       plane.setFromNormalAndCoplanarPoint(new Vector3(0, 1, 0), hit.point);
     }
-    this.objDrag = { id, plane, offset: mesh.position.clone().sub(hit.point), vertical };
+    this.objDrag = { id, plane, offset: mesh.position.clone().sub(hit.point), vertical, moved: false };
     this.downPos.set(e.clientX, e.clientY);
     this.orbit.enabled = false;
     this.editorPane.setPointerCapture(e.pointerId);
@@ -517,6 +525,11 @@ export class SceneView {
     if (!d) return;
     const mesh = this.store.mesh(d.id);
     if (!mesh) return;
+    // majhen premik kazalca med klikom ne sme premakniti predmeta
+    if (!d.moved) {
+      if (Math.hypot(e.clientX - this.downPos.x, e.clientY - this.downPos.y) < 5) return;
+      d.moved = true;
+    }
     this.paneRay(e);
     const p = new Vector3();
     if (!this.raycaster.ray.intersectPlane(d.plane, p)) return;
@@ -686,7 +699,8 @@ export class SceneView {
     this.helpers.visible = editor;
     this.store.setJointsShown(editor);
     this.store.setEdgesFor(editor);
-    this.transform.getHelper().visible = editor;
+    // gizmo je viden samo v urejevalniku in samo, ko je nanj pripet predmet (attach/detach sama upravljata vidnost)
+    this.transform.getHelper().visible = editor && !!this.transform.object;
     this.grid.visible = editor || this.state.view.gridInFrame;
   }
 
