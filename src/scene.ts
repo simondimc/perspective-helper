@@ -327,6 +327,7 @@ export class SceneView {
     }
     this.applySnap();
     this.syncGizmoHandles();
+    this.store.setActiveJoint(this.selectedJoint);
     this.invalidate();
   }
 
@@ -450,6 +451,10 @@ export class SceneView {
     let target: Object3D | null = hit;
     while (target && !target.userData.id && !target.userData.isCamera) target = target.parent;
     if (target) this.focusOn(target);
+  }
+
+  focusCamera(): void {
+    this.focusOn(this.rig);
   }
 
   focusOn(obj: Object3D): void {

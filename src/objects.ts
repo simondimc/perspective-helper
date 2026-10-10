@@ -203,6 +203,9 @@ function defaultRigSize(type: ObjectType): Triple {
   return [Math.round(s[0] * 100) / 100, Math.round(s[1] * 100) / 100, Math.round(s[2] * 100) / 100];
 }
 
+const jointMat = new MeshBasicMaterial({ color: 0xffb703, depthTest: false, transparent: true });
+const jointMatActive = new MeshBasicMaterial({ color: 0xe5242b, depthTest: false, transparent: true });
+
 export class ObjectStore {
   readonly group = new Group();
   private items = new Map<string, { params: ObjectParams; mesh: Mesh }>();
@@ -255,9 +258,8 @@ export class ObjectStore {
     group.visible = false;
     const rig = rigOf(p.type)!;
     const geo = new SphereGeometry(0.035 * Math.max(0.55, Math.min(2.2, p.size[1] / 1.8)), 12, 8);
-    const mat = new MeshBasicMaterial({ color: 0xffb703, depthTest: false, transparent: true });
     for (const j of rig.joints) {
-      const h = new Mesh(geo, mat);
+      const h = new Mesh(geo, jointMat);
       h.name = j;
       h.userData.joint = j;
       h.renderOrder = 20;
@@ -279,6 +281,14 @@ export class ObjectStore {
     for (const j of rig.joints) group.getObjectByName(j)!.position.copy(toMeshSpace(rig, jointPosition(frames, j), p.size));
   }
 
+  /** Izbrani sklep je obarvan rdeče, ostali rumeno. */
+  setActiveJoint(joint: string | null): void {
+    this.items.forEach((it, id) => {
+      const g = it.mesh.getObjectByName('joints');
+      g?.children.forEach((h) => ((h as Mesh).material = joint && id === this.selectedId && h.name === joint ? jointMatActive : jointMat));
+    });
+  }
+
   /** Ročaji sklepov so vidni samo v urejevalniku in samo pri izbrani figuri. */
   setJointsShown(show: boolean): void {
     this.items.forEach((it, id) => {
@@ -295,8 +305,24 @@ export class ObjectStore {
     return out;
   }
 
+  /** Postavi predmet tako, da se najnižja točka dotika tal (npr. po spremembi poze v sedenje). */
+  dropToFloor(id: string): void {
+    const it = this.items.get(id);
+    if (!it) return;
+    it.mesh.updateMatrixWorld(true);
+    it.mesh.position.y -= minWorldY(it.mesh);
+    it.params.position[1] = it.mesh.position.y;
+    it.mesh.updateMatrixWorld(true);
+  }
+
+  /** Sprememba poze: če je predmet stal na tleh, ostane na tleh (sedeča figura se spusti, dvignjena noga ne dvigne telesa). */
   setPose(id: string, pose: Pose): void {
+    const was = this.isOnFloor(id);
     this.update(id, { pose: structuredClone(pose) });
+    if (was) {
+      this.dropToFloor(id);
+      this.emit();
+    }
   }
 
   setPoseAngles(id: string, joint: JointName, a: Angles): void {

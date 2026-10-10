@@ -67,7 +67,7 @@ function eulerFor(rig: Rig, joint: string, a: Angles): Euler {
   const s = d.side;
   switch (d.kind) {
     case 'spine':
-      return new Euler(rad(a[0]), rad(a[1]), rad(a[2]), 'ZXY');
+      return new Euler(rad(a[0]), rad(a[1]), rad(a[2]), 'XYZ');
     case 'limb':
       return new Euler(rad(-a[0]), rad(s * a[1]), rad(s * a[2]), 'ZYX');
     case 'hinge-fwd':
@@ -86,8 +86,8 @@ export function jointQuaternion(rig: Rig, joint: string, a: Angles): Quaternion 
 export function anglesFromQuaternion(rig: Rig, joint: string, q: Quaternion): Angles {
   const d = rig.def[joint];
   const s = d.side;
-  // zamah (x) je lahko večji od 90°, zato pri udih x ne sme biti srednja os
-  const e = new Euler().setFromQuaternion(q, d.kind === 'spine' ? 'ZXY' : 'ZYX');
+  // nagib naprej (x) je lahko večji od 90°, zato x nikoli ni srednja os (pri udih ZYX, pri hrbtenici XYZ)
+  const e = new Euler().setFromQuaternion(q, d.kind === 'spine' ? 'XYZ' : 'ZYX');
   let a: Angles;
   switch (d.kind) {
     case 'spine':
@@ -193,14 +193,14 @@ export function toMeshSpace(rig: Rig, v: Vector3, size: [number, number, number]
 type HDef = Pick<JointDef, 'parent' | 'pivot' | 'side' | 'kind' | 'label' | 'limits'>;
 
 const HUMAN_BASE: Record<string, HDef> = {
-  torso: { parent: null, pivot: [0, 0.93, 0], side: 0, kind: 'spine', label: 'Trup', limits: [[-35, 90], [-70, 70], [-35, 35]] },
+  torso: { parent: null, pivot: [0, 0.93, 0], side: 0, kind: 'spine', label: 'Trup', limits: [[-35, 130], [-70, 70], [-35, 35]] },
   neck: { parent: 'torso', pivot: [0, 1.47, 0], side: 0, kind: 'spine', label: 'Vrat', limits: [[-50, 60], [-80, 80], [-35, 35]] },
   shoulderL: { parent: 'torso', pivot: [0.235, 1.42, 0], side: 1, kind: 'limb', label: 'Rama L', limits: [[-60, 180], [-90, 90], [-20, 180]] },
   shoulderR: { parent: 'torso', pivot: [-0.235, 1.42, 0], side: -1, kind: 'limb', label: 'Rama D', limits: [[-60, 180], [-90, 90], [-20, 180]] },
   elbowL: { parent: 'shoulderL', pivot: [0.235, 1.12, 0], side: 1, kind: 'hinge-fwd', label: 'Komolec L' },
   elbowR: { parent: 'shoulderR', pivot: [-0.235, 1.12, 0], side: -1, kind: 'hinge-fwd', label: 'Komolec D' },
-  hipL: { parent: null, pivot: [0.09, 0.8, 0], side: 1, kind: 'limb', label: 'Bok L', limits: [[-45, 120], [-45, 45], [-20, 80]] },
-  hipR: { parent: null, pivot: [-0.09, 0.8, 0], side: -1, kind: 'limb', label: 'Bok D', limits: [[-45, 120], [-45, 45], [-20, 80]] },
+  hipL: { parent: null, pivot: [0.09, 0.8, 0], side: 1, kind: 'limb', label: 'Bok L', limits: [[-45, 140], [-45, 45], [-20, 80]] },
+  hipR: { parent: null, pivot: [-0.09, 0.8, 0], side: -1, kind: 'limb', label: 'Bok D', limits: [[-45, 140], [-45, 45], [-20, 80]] },
   kneeL: { parent: 'hipL', pivot: [0.09, 0.4, 0], side: 1, kind: 'hinge-back', label: 'Koleno L' },
   kneeR: { parent: 'hipR', pivot: [-0.09, 0.4, 0], side: -1, kind: 'hinge-back', label: 'Koleno D' },
 };

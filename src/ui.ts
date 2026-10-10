@@ -210,7 +210,95 @@ export class UI {
       this.addbar.append(b);
     };
     const first: Array<[ObjectType, string]> = [['box', 'Škatla'], ['sphere', 'Krogla'], ['cylinder', 'Valj'], ['cone', 'Stožec'], ['figure', 'Figura'], ['woman', 'Ženska']];
-    first.forEach(([t, n]) => btn(t, n));
+    // figure: pred dodajanjem izberete višino
+    const sizePop = el('div', 'popover sizepop');
+    sizePop.hidden = true;
+    const KEY_H = 'perspective-helper:figure-height-cm';
+    let lastH = 180;
+    try {
+      lastH = parseFloat(localStorage.getItem(KEY_H) ?? '') || 180;
+    } catch {
+      /* brez shranjevanja */
+    }
+    const KEY_W = 'perspective-helper:figure-weight-kg';
+    let lastW = 75;
+    try {
+      lastW = parseFloat(localStorage.getItem(KEY_W) ?? '') || 75;
+    } catch {
+      /* brez shranjevanja */
+    }
+    let sizeType: ObjectType = 'figure';
+    const title = el('div', 'hint', 'Višina figure (cm)');
+    const heightInput = el('input');
+    heightInput.type = 'number';
+    heightInput.step = '1';
+    heightInput.min = '30';
+    heightInput.max = '300';
+    heightInput.value = String(lastH);
+    const weightTitle = el('div', 'hint', 'Teža (kg): vpliva na postavo');
+    const weightInput = el('input');
+    weightInput.type = 'number';
+    weightInput.step = '1';
+    weightInput.min = '20';
+    weightInput.max = '250';
+    weightInput.value = String(lastW);
+    const wchips = el('div', 'chips');
+    for (const kg of [50, 60, 75, 90, 110, 140]) {
+      const c = el('button', 'chip', String(kg));
+      c.onclick = () => (weightInput.value = String(kg));
+      wchips.append(c);
+    }
+    const chips = el('div', 'chips');
+    for (const [h, lab] of [[120, 'otrok'], [150, '150'], [160, '160'], [170, '170'], [180, '180'], [190, '190'], [200, '200']] as Array<[number, string]>) {
+      const c = el('button', 'chip', lab);
+      c.onclick = () => (heightInput.value = String(h));
+      chips.append(c);
+    }
+    const addSized = el('button', 'btn', 'Dodaj figuro');
+    addSized.onclick = () => {
+      const cm = Math.min(300, Math.max(30, parseFloat(heightInput.value) || 180));
+      const h = cm / 100;
+      const kg = Math.min(250, Math.max(20, parseFloat(weightInput.value) || 75));
+      try {
+        localStorage.setItem(KEY_W, String(kg));
+        localStorage.setItem(KEY_H, String(cm));
+      } catch {
+        /* brez shranjevanja */
+      }
+      const o = add(sizeType);
+      const base = o.size;
+      const k = h / base[1];
+      // postava iz ITM (kg / m²): referenčni 22; širina in globina rasteta z ITM
+      const bmi = kg / (h * h);
+      const wf = Math.min(2.2, Math.max(0.65, 1 + (bmi - 22) * 0.04));
+      const df = Math.min(2.4, Math.max(0.7, 1 + (bmi - 22) * 0.05));
+      view.store.update(o.id, { size: [base[0] * k * wf, h, base[2] * k * df], position: [o.position[0], h / 2, o.position[2]] });
+      sizePop.style.display = 'none';
+    };
+    sizePop.append(title, heightInput, chips, weightTitle, weightInput, wchips, addSized);
+    sizePop.style.display = 'none';
+    this.addbar.append(sizePop);
+    for (const [t, n] of first) {
+      if (t === 'figure' || t === 'woman') {
+        const b = el('button', '', icon(t));
+        b.title = `Dodaj: ${n} (izberete višino)`;
+        b.onclick = (e) => {
+          e.stopPropagation();
+          sizeType = t;
+          title.textContent = `Višina: ${n} (cm)`;
+          addSized.textContent = `Dodaj: ${n}`;
+          const open = sizePop.style.display === 'none' || sizeType !== t;
+          sizePop.style.display = open ? 'grid' : 'none';
+          sizePop.style.top = `${b.offsetTop}px`;
+          heightInput.value = String(t === 'woman' && !localStorage.getItem(KEY_H) ? 170 : lastH);
+          weightInput.value = String(t === 'woman' && !localStorage.getItem(KEY_W) ? 60 : lastW);
+        };
+        this.addbar.append(b);
+      } else btn(t, n);
+    }
+    window.addEventListener('pointerdown', (e) => {
+      if (!sizePop.contains(e.target as Node)) sizePop.style.display = 'none';
+    });
     // živali: ena ikona odpre seznam
     const animals: ObjectType[] = ['dog', 'horse', 'elephant', ...ANIMAL_TYPES];
     const ab = el('button', '', icon('dog'));
@@ -416,8 +504,43 @@ export class UI {
     reset.style.color = 'var(--muted)';
     const fileCard = this.card('Datoteka', false, files, reset);
 
-    side.append(this.poseCard(), camCard, lightCard, guidesCard, viewCard, fileCard);
+    side.append(this.objectList(), this.poseCard(), camCard, lightCard, guidesCard, viewCard, fileCard);
     this.root.append(side, toggle);
+  }
+
+  /** Seznam predmetov v sceni: klik izbere predmet (kot klik v sceni) in pogled urejevalnika se usmeri nanj. */
+  private objectList(): HTMLElement {
+    const { view } = this;
+    const list = el('div', 'objlist');
+    let sig = '';
+    const render = () => {
+      const items = view.store.list();
+      const sel = view.cameraSelected ? 'camera' : (view.store.selectedId ?? '');
+      const next = items.map((o) => `${o.id}:${o.name}:${o.type}`).join('|') + `#${sel}`;
+      if (next === sig) return;
+      sig = next;
+      list.replaceChildren();
+      const row = (label: string, sub: string, active: boolean, onClick: () => void) => {
+        const b = el('button', `objrow${active ? ' on' : ''}`);
+        b.append(el('span', 'nm', label), el('span', 'sub', sub));
+        b.onclick = onClick;
+        list.append(b);
+      };
+      row('Kamera', 'kompozicijska', sel === 'camera', () => {
+        view.selectCamera();
+        view.focusCamera();
+      });
+      for (const o of items) {
+        row(o.name, TYPE_LABELS[o.type] ?? o.type, o.id === sel, () => {
+          view.store.select(o.id);
+          const m = view.store.mesh(o.id);
+          if (m) view.focusOn(m);
+        });
+      }
+      if (!items.length) list.append(el('div', 'hint', 'V sceni ni predmetov.'));
+    };
+    this.syncs.push(render);
+    return this.card('Predmeti v sceni', false, list);
   }
 
   /** Poza figure: pripravljene poze in drsniki za sklepe (prikaže se samo, ko je izbrana figura). */
