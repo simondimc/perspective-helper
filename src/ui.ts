@@ -2,7 +2,7 @@ import './ui.css';
 import { ASPECTS } from './camera';
 import { Rig, axesOf, limitsOf } from './figure';
 import { isPosable, rigOf } from './rigs';
-import { applyScene, blankSceneFile, createScene, currentSceneId, deleteScene, downloadBlob, downloadScene, fileSafeName, getIndex, loadLocal, pickSceneFile, renameScene, resetScene, saveLocal, serialize, setCurrentScene } from './io';
+import { applyScene, blankSceneFile, createScene, currentSceneId, deleteScene, downloadBlob, downloadScene, fileSafeName, getIndex, loadLocal, pickSceneFile, renameScene, resetScene, sceneNameOf, saveLocal, serialize, setCurrentScene } from './io';
 import { ANIMAL_TYPES } from './animalRigs';
 import { ObjectStyle, ObjectType, TYPE_LABELS } from './objects';
 import { DEFAULT_OPENING, clampOpening, isWallType } from './wall';
@@ -591,7 +591,13 @@ export class UI {
     const files = el('div', 'btns');
     files.append(
       btn('Shrani JSON', () => downloadScene(state, view.store)),
-      btn('Odpri JSON', async () => { applyScene(await pickSceneFile(), state, view.store); this.afterLoad(); }),
+      btn('Odpri JSON', async () => {
+        const data = await pickSceneFile();
+        applyScene(data, state, view.store);
+        const name = sceneNameOf(data);
+        if (name) renameScene(currentSceneId(), name);
+        this.afterLoad();
+      }),
       btn('PNG + vodila', async () => downloadBlob(await view.exportPng(2400, true), `${fileSafeName()}-kader-z-vodili.png`)),
       btn('PNG čisto', async () => downloadBlob(await view.exportPng(2400, false), `${fileSafeName()}-kader.png`)),
     );

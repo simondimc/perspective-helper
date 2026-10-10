@@ -10,11 +10,13 @@ const STORAGE_KEY = 'perspective-helper:scene';
 
 export interface SceneFile extends AppState {
   version: number;
+  /** Ime scene; ob uvozu se nastavi kot ime trenutne scene. */
+  name?: string;
   objects: ObjectParams[];
 }
 
 export function serialize(state: AppState, store: ObjectStore): SceneFile {
-  return { version: FILE_VERSION, objects: structuredClone(store.list()), camera: { ...state.camera }, light: { ...state.light }, guides: { ...state.guides }, view: { ...state.view } };
+  return { version: FILE_VERSION, name: currentSceneName(), objects: structuredClone(store.list()), camera: { ...state.camera }, light: { ...state.light }, guides: { ...state.guides }, view: { ...state.view } };
 }
 
 const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair', ...ANIMAL_TYPES];
@@ -270,4 +272,10 @@ export function pickSceneFile(): Promise<unknown> {
     };
     input.click();
   });
+}
+
+/** Ime scene iz uvožene datoteke (ali null, če ga ni). */
+export function sceneNameOf(data: unknown): string | null {
+  const n = isObj(data) && typeof data.name === 'string' ? data.name.trim() : '';
+  return n || null;
 }
