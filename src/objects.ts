@@ -17,14 +17,15 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
-import { dogGeometry } from './dog';
-import { elephantGeometry } from './elephant';
 import { chairGeometry, tableGeometry } from './furniture';
 import { DEFAULT_OPENING, Opening, isWallType, wallGeometry } from './wall';
-import { horseGeometry } from './horse';
-import { Angles, JOINTS, JointName, Pose, figureGeometry, isFigureType, jointFrames, jointPosition, toMeshSpace, variantOf } from './figure';
+import { Angles, JointName, Pose, jointFrames, jointPosition, rigGeometry, toMeshSpace } from './figure';
+import { ANIMAL_LABELS, AnimalType, isAnimalType } from './animalRigs';
+import { isPosable, rigOf } from './rigs';
+import { restSize } from './figure';
 
-export type ObjectType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair';
+export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair';
+export type ObjectType = BaseType | AnimalType;
 
 /** Prikaz objektov: mavec, samo robovi (brez ploskev) ali oboje. */
 export type ObjectStyle = 'solid' | 'edges' | 'both';
@@ -48,6 +49,7 @@ export interface ObjectParams {
 }
 
 export const TYPE_LABELS: Record<ObjectType, string> = {
+  ...ANIMAL_LABELS,
   box: 'Škatla',
   sphere: 'Krogla',
   cylinder: 'Valj',
@@ -64,7 +66,7 @@ export const TYPE_LABELS: Record<ObjectType, string> = {
   chair: 'Stol',
 };
 
-const DEFAULT_SIZE: Record<ObjectType, Triple> = {
+const DEFAULT_SIZE: Partial<Record<ObjectType, Triple>> = {
   box: [1, 1, 1],
   sphere: [1, 1, 1],
   cylinder: [0.8, 1.5, 0.8],
@@ -100,12 +102,8 @@ export function buildEdges(type: ObjectType, size: Triple, pose?: Pose, opening?
   let pos: number[] = [];
   if (isWallType(type)) {
     return new EdgesGeometry(buildGeometry(type, size, pose, opening), 1);
-  } else if (type === 'dog') {
-    return new EdgesGeometry(dogGeometry(size, true), 12);
-  } else if (type === 'horse') {
-    return new EdgesGeometry(horseGeometry(size, true), 12);
-  } else if (type === 'elephant') {
-    return new EdgesGeometry(elephantGeometry(size, true), 12);
+  } else if (type === 'dog' || type === 'horse' || type === 'elephant' || isAnimalType(type)) {
+    return new EdgesGeometry(rigGeometry(rigOf(type)!, pose ?? {}, size, true), 12);
   } else if (type === 'table' || type === 'chair') {
     return new EdgesGeometry(buildGeometry(type, size), 1);
   } else if (type === 'box' || type === 'wall' || type === 'figure' || type === 'woman') {
@@ -147,15 +145,11 @@ export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, openi
     case 'cone':
       return new ConeGeometry(0.5, 1, 64).scale(sx, sy, sz);
     case 'figure':
-      return figureGeometry(pose ?? {}, size);
     case 'woman':
-      return figureGeometry(pose ?? {}, size, 'woman');
     case 'dog':
-      return dogGeometry(size);
     case 'horse':
-      return horseGeometry(size);
     case 'elephant':
-      return elephantGeometry(size);
+      return rigGeometry(rigOf(type)!, pose ?? {}, size);
     case 'table':
       return tableGeometry(size);
     case 'chair':
@@ -163,6 +157,9 @@ export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, openi
     case 'wallDoor':
     case 'wallWindow':
       return wallGeometry(size, { ...DEFAULT_OPENING[type], ...opening });
+    default:
+      // živali s skeletom
+      return rigGeometry(rigOf(type)!, pose ?? {}, size);
   }
 }
 
@@ -197,6 +194,13 @@ function minWorldY(mesh: Mesh): number {
     if (y < min) min = y;
   }
   return min;
+}
+
+/** Naravna velikost živali iz skeleta (zaokrožena na cm). */
+function defaultRigSize(type: ObjectType): Triple {
+  const rig = rigOf(type);
+  const s = rig ? restSize(rig) : [1, 1, 1];
+  return [Math.round(s[0] * 100) / 100, Math.round(s[1] * 100) / 100, Math.round(s[2] * 100) / 100];
 }
 
 export class ObjectStore {
@@ -240,7 +244,7 @@ export class ObjectStore {
     this.applyTransform(mesh, p);
     this.addEdges(mesh, p);
     this.applyStyle(mesh);
-    if (isFigureType(p.type)) this.addJoints(mesh, p);
+    if (isPosable(p.type)) this.addJoints(mesh, p);
     return mesh;
   }
 
@@ -249,9 +253,10 @@ export class ObjectStore {
     const group = new Group();
     group.name = 'joints';
     group.visible = false;
-    const geo = new SphereGeometry(0.035, 12, 8);
+    const rig = rigOf(p.type)!;
+    const geo = new SphereGeometry(0.035 * Math.max(0.55, Math.min(2.2, p.size[1] / 1.8)), 12, 8);
     const mat = new MeshBasicMaterial({ color: 0xffb703, depthTest: false, transparent: true });
-    for (const j of JOINTS) {
+    for (const j of rig.joints) {
       const h = new Mesh(geo, mat);
       h.name = j;
       h.userData.joint = j;
@@ -268,9 +273,10 @@ export class ObjectStore {
   private updateJoints(mesh: Mesh, p: ObjectParams): void {
     const group = mesh.getObjectByName('joints');
     if (!group) return;
-    const v = variantOf(p.type);
-    const frames = jointFrames(p.pose ?? {}, v);
-    for (const j of JOINTS) group.getObjectByName(j)!.position.copy(toMeshSpace(jointPosition(frames, j), p.size, v));
+    const rig = rigOf(p.type);
+    if (!rig) return;
+    const frames = jointFrames(p.pose ?? {}, rig);
+    for (const j of rig.joints) group.getObjectByName(j)!.position.copy(toMeshSpace(rig, jointPosition(frames, j), p.size));
   }
 
   /** Ročaji sklepov so vidni samo v urejevalniku in samo pri izbrani figuri. */
@@ -285,7 +291,7 @@ export class ObjectStore {
   getPose(id: string): Record<JointName, Angles> {
     const pose = this.get(id)?.pose ?? {};
     const out = {} as Record<JointName, Angles>;
-    for (const j of JOINTS) out[j] = [...(pose[j] ?? [0, 0, 0])] as Angles;
+    for (const j of rigOf(this.get(id)?.type)?.joints ?? []) out[j] = [...(pose[j] ?? [0, 0, 0])] as Angles;
     return out;
   }
 
@@ -393,7 +399,7 @@ export class ObjectStore {
   }
 
   add(type: ObjectType, at?: { x: number; z: number }): ObjectParams {
-    const size = [...DEFAULT_SIZE[type]] as Triple;
+    const size = [...(DEFAULT_SIZE[type] ?? defaultRigSize(type))] as Triple;
     const p = this.insert({
       id: newId(),
       type,

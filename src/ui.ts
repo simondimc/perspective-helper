@@ -1,8 +1,10 @@
 import './ui.css';
 import { ASPECTS } from './camera';
-import { JOINT_LABELS, isFigureType, JointName, LIMITS, POSES } from './figure';
+import { Rig, axesOf, limitsOf } from './figure';
+import { isPosable, rigOf } from './rigs';
 import { applyScene, downloadBlob, downloadScene, pickSceneFile, resetScene, saveLocal } from './io';
-import { ObjectStyle, ObjectType } from './objects';
+import { ANIMAL_TYPES } from './animalRigs';
+import { ObjectStyle, ObjectType, TYPE_LABELS } from './objects';
 import { DEFAULT_OPENING, clampOpening, isWallType } from './wall';
 import { PROJECTION_LABELS } from './projection';
 import { SceneView, TransformMode, ViewMode } from './scene';
@@ -45,6 +47,9 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''):
 export class UI {
   private root = document.getElementById('ui')!;
   private syncs: Array<() => void> = [];
+  /** Sinhronizacije drsnikov poze (se zamenjajo, ko se skelet spremeni). */
+  private poseSyncs: Array<() => void> = [];
+  private syncTarget: Array<() => void> | null = null;
   private saveTimer = 0;
   private hint = el('div');
   private tools = el('div', 'seg');
@@ -85,6 +90,7 @@ export class UI {
   // ---- gradniki ----
 
   private sync(): void {
+    this.poseSyncs.forEach((f) => f());
     this.syncs.forEach((f) => f());
   }
 
@@ -144,7 +150,7 @@ export class UI {
       b.append(num, el('span', 'unit', edit.unit));
     }
     row.append(lab, input);
-    this.syncs.push(() => {
+    (this.syncTarget ?? this.syncs).push(() => {
       if (typeof min === 'function') input.min = String(min());
       const v = get();
       input.value = String(v);
@@ -197,12 +203,39 @@ export class UI {
 
   private buildAddbar(): void {
     const { view } = this;
-    const types: Array<[ObjectType, string]> = [['box', 'Škatla'], ['sphere', 'Krogla'], ['cylinder', 'Valj'], ['cone', 'Stožec'], ['figure', 'Figura'], ['woman', 'Ženska'], ['dog', 'Pes'], ['horse', 'Konj'], ['elephant', 'Slon'], ['wall', 'Stena'], ['wallDoor', 'Stena z vrati'], ['wallWindow', 'Stena z oknom'], ['table', 'Miza'], ['chair', 'Stol']];
-    for (const [t, title] of types) {
+    const add = (t: ObjectType) => view.store.add(t, view.groundTarget());
+    const btn = (t: ObjectType, title: string) => {
       const b = el('button', '', icon(t));
       b.title = `Dodaj: ${title}`;
-      b.onclick = () => view.store.add(t, view.groundTarget());
+      b.onclick = () => add(t);
+    };
+    const first: Array<[ObjectType, string]> = [['box', 'Škatla'], ['sphere', 'Krogla'], ['cylinder', 'Valj'], ['cone', 'Stožec'], ['figure', 'Figura'], ['woman', 'Ženska']];
+    first.forEach(([t, n]) => btn(t, n));
+    // živali: ena ikona odpre seznam
+    const animals: ObjectType[] = ['dog', 'horse', 'elephant', ...ANIMAL_TYPES];
+    const ab = el('button', '', icon('dog'));
+    ab.title = 'Živali';
+    const pop = el('div', 'popover');
+    pop.hidden = true;
+    for (const t of animals) {
+      const b = el('button', '', TYPE_LABELS[t]);
+      b.onclick = () => {
+        add(t);
+        pop.hidden = true;
+      };
+      pop.append(b);
       this.addbar.append(b);
+    ab.onclick = (e) => {
+      e.stopPropagation();
+      pop.hidden = !pop.hidden;
+      pop.style.top = `${ab.offsetTop}px`;
+    };
+    window.addEventListener('pointerdown', (e) => {
+      if (!pop.contains(e.target as Node)) pop.hidden = true;
+    });
+    this.addbar.append(ab, pop);
+    const rest: Array<[ObjectType, string]> = [['wall', 'Stena'], ['wallDoor', 'Stena z vrati'], ['wallWindow', 'Stena z oknom'], ['table', 'Miza'], ['chair', 'Stol']];
+    rest.forEach(([t, n]) => btn(t, n));
     }
     this.root.append(this.addbar);
   }
@@ -391,75 +424,76 @@ export class UI {
   /** Poza figure: pripravljene poze in drsniki za sklepe (prikaže se samo, ko je izbrana figura). */
   private poseCard(): HTMLElement {
     const { store } = this.view;
-    const fig = () => {
+    const sel = () => {
       const p = store.selected();
-      return p && isFigureType(p.type) ? p : undefined;
+      return p && isPosable(p.type) ? p : undefined;
     };
-    const presets = el('div', 'chips');
-    for (const name of Object.keys(POSES)) {
-      const b = el('button', 'chip', name);
-      b.onclick = () => {
-        const p = fig();
-        if (p) store.setPose(p.id, POSES[name]);
-      };
-      presets.append(b);
-    }
-    const AX: Record<string, string[]> = {
-      torso: ['Nagib naprej', 'Zasuk', 'Nagib vstran'],
-      neck: ['Kimanje', 'Obračanje', 'Nagib vstran'],
-      shoulder: ['Zamah naprej', 'Zasuk', 'Odmik vstran'],
-      hip: ['Zamah naprej', 'Zasuk', 'Odmik vstran'],
-      elbow: ['Upogib'],
-      knee: ['Upogib'],
-    };
-    const group = (title: string, joints: JointName[]) => {
-      const d = el('details');
-      d.append(el('summary', 'hint', title));
-      const body = el('div');
-      body.style.cssText = 'display:flex;flex-direction:column;gap:9px;padding-top:8px';
-      for (const j of joints) {
-        const labels = AX[j.replace(/[LR]$/, '')];
-        labels.forEach((label, i) => {
-          const [lo, hi] = LIMITS[j][i];
-          body.append(
-            this.slider(
-              joints.length > 1 ? `${JOINT_LABELS[j].split(' ')[0]}: ${label}` : label,
-              lo,
-              hi,
-              1,
-              () => {
-                const p = fig();
-                return p ? store.getPose(p.id)[j][i] : 0;
-              },
-              (v) => {
-                const p = fig();
-                if (!p) return;
-                const a = store.getPose(p.id)[j];
-                a[i] = v;
-                store.setPoseAngles(p.id, j, a);
-              },
-              (v) => `${Math.round(v)}°`,
-              undefined,
-              { unit: '°', decimals: 0 },
-            ),
-          );
-        });
+    const content = el('div');
+    content.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+    let current = '';
+    const rebuild = (rig: Rig | null) => {
+      current = rig?.id ?? '';
+      content.replaceChildren();
+      this.poseSyncs = [];
+      if (!rig) return;
+      this.syncTarget = this.poseSyncs;
+      const presets = el('div', 'chips');
+      for (const name of Object.keys(rig.poses)) {
+        const b = el('button', 'chip', name);
+        b.onclick = () => {
+          const p = sel();
+          if (p) store.setPose(p.id, rig.poses[name]);
+        };
+        presets.append(b);
       }
-      d.append(body);
-      return d;
+      content.append(presets, el('div', 'hint', 'V sceni klikni rumeno piko (sklep) in jo zavrti z gizmom.'));
+      for (const g of rig.groups) {
+        const d = el('details');
+        d.append(el('summary', 'hint', g.title));
+        const body = el('div');
+        body.style.cssText = 'display:flex;flex-direction:column;gap:9px;padding-top:8px';
+        for (const j of g.joints) {
+          const labels = axesOf(rig, j);
+          const lim = limitsOf(rig, j);
+          labels.forEach((label, i) => {
+            const [lo, hi] = lim[i];
+            if (lo === hi) return;
+            body.append(
+              this.slider(
+                `${rig.def[j].label}: ${label}`,
+                lo,
+                hi,
+                1,
+                () => {
+                  const p = sel();
+                  return p ? (store.getPose(p.id)[j]?.[i] ?? 0) : 0;
+                },
+                (v) => {
+                  const p = sel();
+                  if (!p) return;
+                  const a = store.getPose(p.id)[j];
+                  a[i] = v;
+                  store.setPoseAngles(p.id, j, a);
+                },
+                (v) => `${Math.round(v)}°`,
+                undefined,
+                { unit: '°', decimals: 0 },
+              ),
+            );
+          });
+        }
+        d.append(body);
+        content.append(d);
+      }
+      this.syncTarget = null;
     };
-    const card = this.card(
-      'Poza figure',
-      false,
-      presets,
-      el('div', 'hint', 'V sceni klikni rumeno piko (sklep) in jo zavrti z gizmom.'),
-      group('Trup in vrat', ['torso', 'neck']),
-      group('Leva roka', ['shoulderL', 'elbowL']),
-      group('Desna roka', ['shoulderR', 'elbowR']),
-      group('Leva noga', ['hipL', 'kneeL']),
-      group('Desna noga', ['hipR', 'kneeR']),
-    );
-    this.syncs.push(() => (card.hidden = !fig()));
+    const card = this.card('Poza', false, content);
+    this.syncs.push(() => {
+      const p = sel();
+      card.hidden = !p;
+      const rig = p ? rigOf(p.type) : null;
+      if ((rig?.id ?? '') !== current) rebuild(rig);
+    });
     return card;
   }
 
@@ -678,7 +712,6 @@ export class UI {
     const p = this.view.store.selected();
     this.selbar.classList.toggle('show', !!p && !this.view.cameraSelected);
     if (!p) return;
-    this.selName.textContent = p.name;
     this.sync();
   }
 

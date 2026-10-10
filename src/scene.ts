@@ -41,7 +41,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { CompositionCamera, cameraPosition, cameraQuaternion, constrain, frameAspect, frameGeometry } from './camera';
 import { GuideBox, GuideInput, drawEdges, drawGuides } from './guides';
-import { JointName, anglesFromQuaternion, isFigureType, jointFrames, jointPosition, jointQuaternion, toMeshSpace, variantOf } from './figure';
+import { JointName, anglesFromQuaternion, jointFrames, jointPosition, jointQuaternion, toMeshSpace } from './figure';
+import { isPosable, rigOf } from './rigs';
 import { HandleKind, applyDrag, hitTest } from './handles';
 import { Lighting } from './lighting';
 import { ObjectStore, localAxes, objectQuaternion } from './objects';
@@ -301,7 +302,7 @@ export class SceneView {
   private updateAttachment(): void {
     const tc = this.transform;
     const sel = this.store.selected();
-    if (this.selectedJoint && sel && isFigureType(sel.type)) {
+    if (this.selectedJoint && sel && isPosable(sel.type)) {
       this.store.mesh(sel.id)!.add(this.jointProxy);
       this.syncJointProxy();
       tc.setMode('rotate');
@@ -338,11 +339,13 @@ export class SceneView {
   private syncJointProxy(): void {
     const sel = this.store.selected();
     if (!this.selectedJoint || !sel) return;
-    const frames = jointFrames(sel.pose ?? {}, variantOf(sel.type));
+    const rig = rigOf(sel.type);
+    if (!rig) return;
+    const frames = jointFrames(sel.pose ?? {}, rig);
     const j = this.selectedJoint;
     const parentQ = new Quaternion().setFromRotationMatrix(frames[j].parent);
-    this.jointProxy.position.copy(toMeshSpace(jointPosition(frames, j), sel.size, variantOf(sel.type)));
-    this.jointProxy.quaternion.copy(parentQ.multiply(jointQuaternion(j, sel.pose?.[j] ?? [0, 0, 0])));
+    this.jointProxy.position.copy(toMeshSpace(rig, jointPosition(frames, j), sel.size));
+    this.jointProxy.quaternion.copy(parentQ.multiply(jointQuaternion(rig, j, sel.pose?.[j] ?? [0, 0, 0])));
     this.jointProxy.updateMatrixWorld(true);
   }
 
@@ -376,10 +379,12 @@ export class SceneView {
   private onTransformChange(): void {
     const sel = this.store.selected();
     if (this.selectedJoint && sel) {
-      const frames = jointFrames(sel.pose ?? {}, variantOf(sel.type));
+      const rig = rigOf(sel.type);
+      if (!rig) return;
+      const frames = jointFrames(sel.pose ?? {}, rig);
       const parentQ = new Quaternion().setFromRotationMatrix(frames[this.selectedJoint].parent);
       const rel = parentQ.invert().multiply(this.jointProxy.quaternion);
-      this.store.setPoseAngles(sel.id, this.selectedJoint, anglesFromQuaternion(this.selectedJoint, rel));
+      this.store.setPoseAngles(sel.id, this.selectedJoint, anglesFromQuaternion(rig, this.selectedJoint, rel));
       return;
     }
     if (this.cameraSelected) {
@@ -469,7 +474,7 @@ export class SceneView {
   /** Klik na ročaj sklepa ima prednost pred telesom figure (ročaji so znotraj telesa, zato jih žarek sicer ne bi zadel prvih). */
   private pickJoint(e: PointerEvent): JointName | null {
     const sel = this.store.selected();
-    if (!sel || !isFigureType(sel.type)) return null;
+    if (!sel || !isPosable(sel.type)) return null;
     const group = this.store.mesh(sel.id)?.getObjectByName('joints');
     if (!group) return null;
     this.paneRay(e);

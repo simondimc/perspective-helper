@@ -1,4 +1,5 @@
-import { JOINTS, Pose } from './figure';
+import { ANIMAL_TYPES } from './animalRigs';
+import { Pose } from './figure';
 import { ASPECTS, constrain, PerspectiveMode } from './camera';
 import { GuideSettings } from './guides';
 import { ObjectParams, ObjectStore, ObjectType, Triple } from './objects';
@@ -16,7 +17,7 @@ export function serialize(state: AppState, store: ObjectStore): SceneFile {
   return { version: FILE_VERSION, objects: structuredClone(store.list()), camera: { ...state.camera }, light: { ...state.light }, guides: { ...state.guides }, view: { ...state.view } };
 }
 
-const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair'];
+const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair', ...ANIMAL_TYPES];
 const isTriple = (v: unknown): v is Triple => Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && isFinite(n));
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -27,7 +28,7 @@ function parseObjects(raw: unknown): ObjectParams[] {
       throw new Error(`Neveljaven objekt #${i + 1}`);
     }
     const pose: Pose = {};
-    if (isObj(o.pose)) for (const j of JOINTS) if (isTriple(o.pose[j])) pose[j] = [...(o.pose[j] as Triple)];
+    if (isObj(o.pose)) for (const [j, a] of Object.entries(o.pose)) if (isTriple(a)) pose[j] = [...(a as Triple)];
     const opening = isObj(o.opening) && ['w', 'h', 'x', 'y'].every((k) => typeof (o.opening as Record<string, unknown>)[k] === 'number') ? (o.opening as { w: number; h: number; x: number; y: number }) : undefined;
     return {
       pose,
