@@ -190,7 +190,10 @@ export function toMeshSpace(rig: Rig, v: Vector3, size: [number, number, number]
 
 // ---------------------------------------------------------------- človek
 
-type HDef = Pick<JointDef, 'parent' | 'pivot' | 'side' | 'kind' | 'label' | 'limits'>;
+type HDef = Pick<JointDef, 'parent' | 'pivot' | 'side' | 'kind' | 'label' | 'limits' | 'axes'>;
+
+const WRIST_AXES = ['Upogib', 'Zasuk', 'Odmik vstran'];
+const WRIST_LIMITS: Array<[number, number]> = [[-70, 70], [-80, 80], [-30, 30]];
 
 const HUMAN_BASE: Record<string, HDef> = {
   torso: { parent: null, pivot: [0, 0.93, 0], side: 0, kind: 'spine', label: 'Trup', limits: [[-35, 130], [-70, 70], [-35, 35]] },
@@ -199,6 +202,8 @@ const HUMAN_BASE: Record<string, HDef> = {
   shoulderR: { parent: 'torso', pivot: [-0.235, 1.42, 0], side: -1, kind: 'limb', label: 'Rama D', limits: [[-60, 180], [-90, 90], [-20, 180]] },
   elbowL: { parent: 'shoulderL', pivot: [0.235, 1.12, 0], side: 1, kind: 'hinge-fwd', label: 'Komolec L' },
   elbowR: { parent: 'shoulderR', pivot: [-0.235, 1.12, 0], side: -1, kind: 'hinge-fwd', label: 'Komolec D' },
+  wristL: { parent: 'elbowL', pivot: [0.235, 0.84, 0], side: 1, kind: 'limb', label: 'Zapestje L', axes: WRIST_AXES, limits: WRIST_LIMITS },
+  wristR: { parent: 'elbowR', pivot: [-0.235, 0.84, 0], side: -1, kind: 'limb', label: 'Zapestje D', axes: WRIST_AXES, limits: WRIST_LIMITS },
   hipL: { parent: null, pivot: [0.09, 0.8, 0], side: 1, kind: 'limb', label: 'Bok L', limits: [[-45, 140], [-45, 45], [-20, 80]] },
   hipR: { parent: null, pivot: [-0.09, 0.8, 0], side: -1, kind: 'limb', label: 'Bok D', limits: [[-45, 140], [-45, 45], [-20, 80]] },
   kneeL: { parent: 'hipL', pivot: [0.09, 0.4, 0], side: 1, kind: 'hinge-back', label: 'Koleno L' },
@@ -207,8 +212,8 @@ const HUMAN_BASE: Record<string, HDef> = {
 
 const HUMAN_GROUPS = [
   { title: 'Trup in vrat', joints: ['torso', 'neck'] },
-  { title: 'Leva roka', joints: ['shoulderL', 'elbowL'] },
-  { title: 'Desna roka', joints: ['shoulderR', 'elbowR'] },
+  { title: 'Leva roka', joints: ['shoulderL', 'elbowL', 'wristL'] },
+  { title: 'Desna roka', joints: ['shoulderR', 'elbowR', 'wristR'] },
   { title: 'Leva noga', joints: ['hipL', 'kneeL'] },
   { title: 'Desna noga', joints: ['hipR', 'kneeR'] },
 ];
@@ -224,22 +229,28 @@ export const HUMAN_POSES: Record<string, Pose> = {
 const cyl = (rt: number, rb: number, h: number) => (): BufferGeometry => new CylinderGeometry(rt, rb, h, 16);
 const box = (w: number, h: number, d: number) => (): BufferGeometry => new BoxGeometry(w, h, d);
 
+/** Zaobljen trup, ki se proti ramenom razširi (eliptični prerez, z = razmerje globine). */
+const taper = (rt: number, rb: number, h: number, z: number) => (): BufferGeometry => new CylinderGeometry(rt, rb, h, 24).scale(1, 1, z);
+
 function manParts(): Part[] {
   const p: Part[] = [
-    { joint: null, make: box(0.3, 0.18, 0.19), at: [0, 0.84, 0] },
-    { joint: 'torso', make: box(0.34, 0.54, 0.2), at: [0, 1.2, 0] },
+    { joint: null, make: taper(0.155, 0.13, 0.18, 0.65), at: [0, 0.84, 0] },
+    { joint: 'torso', make: taper(0.2, 0.125, 0.54, 0.55), at: [0, 1.2, 0] },
     { joint: 'neck', make: cyl(0.045, 0.05, 0.1), at: [0, 1.51, 0] },
     { joint: 'neck', make: () => new SphereGeometry(1, 24, 16).scale(0.095, 0.12, 0.11), at: [0, 1.64, 0] },
   ];
   for (const s of [1, -1]) {
     const sh = s === 1 ? 'shoulderL' : 'shoulderR';
     const el = s === 1 ? 'elbowL' : 'elbowR';
+    const wr = s === 1 ? 'wristL' : 'wristR';
     const hp = s === 1 ? 'hipL' : 'hipR';
     const kn = s === 1 ? 'kneeL' : 'kneeR';
     p.push(
+      { joint: sh, make: () => new SphereGeometry(0.052, 14, 10), at: [s * 0.235, 1.42, 0] },
       { joint: sh, make: cyl(0.048, 0.04, 0.3), at: [s * 0.235, 1.27, 0] },
       { joint: el, make: cyl(0.04, 0.032, 0.28), at: [s * 0.235, 0.98, 0] },
-      { joint: el, make: box(0.05, 0.09, 0.035), at: [s * 0.235, 0.795, 0] },
+      { joint: wr, make: box(0.05, 0.09, 0.035), at: [s * 0.235, 0.795, 0] },
+      { joint: hp, make: () => new SphereGeometry(0.075, 14, 10), at: [s * 0.09, 0.8, 0] },
       { joint: hp, make: cyl(0.075, 0.06, 0.4), at: [s * 0.09, 0.6, 0] },
       { joint: kn, make: cyl(0.055, 0.04, 0.38), at: [s * 0.09, 0.21, 0] },
       { joint: kn, make: box(0.09, 0.06, 0.24), at: [s * 0.09, 0.03, 0.06] },
@@ -249,25 +260,27 @@ function manParts(): Part[] {
 }
 
 function womanParts(): Part[] {
-  const ell = (rx: number, ry: number, rz: number) => (): BufferGeometry => new SphereGeometry(1, 16, 12).scale(rx, ry, rz);
   const p: Part[] = [
-    { joint: null, make: box(0.34, 0.2, 0.2), at: [0, 0.85, 0] },
-    { joint: 'torso', make: box(0.25, 0.22, 0.17), at: [0, 1.05, 0] },
-    { joint: 'torso', make: box(0.3, 0.3, 0.19), at: [0, 1.3, 0] },
-    { joint: 'torso', make: ell(0.07, 0.065, 0.06), at: [0.075, 1.28, 0.09] },
-    { joint: 'torso', make: ell(0.07, 0.065, 0.06), at: [-0.075, 1.28, 0.09] },
+    { joint: null, make: taper(0.185, 0.14, 0.2, 0.62), at: [0, 0.85, 0] },
+    { joint: 'torso', make: taper(0.13, 0.125, 0.22, 0.65), at: [0, 1.05, 0] },
+    { joint: 'torso', make: taper(0.15, 0.125, 0.3, 0.6), at: [0, 1.3, 0] },
+    { joint: 'torso', make: () => new SphereGeometry(1, 16, 12).scale(0.036, 0.055, 0.026).rotateZ(0.3).rotateX(0.35), at: [0.075, 1.27, 0.085] },
+    { joint: 'torso', make: () => new SphereGeometry(1, 16, 12).scale(0.036, 0.055, 0.026).rotateZ(-0.3).rotateX(0.35), at: [-0.075, 1.27, 0.085] },
     { joint: 'neck', make: cyl(0.04, 0.045, 0.1), at: [0, 1.5, 0] },
     { joint: 'neck', make: () => new SphereGeometry(1, 24, 16).scale(0.088, 0.11, 0.1), at: [0, 1.62, 0] },
   ];
   for (const s of [1, -1]) {
     const sh = s === 1 ? 'shoulderL' : 'shoulderR';
     const el = s === 1 ? 'elbowL' : 'elbowR';
+    const wr = s === 1 ? 'wristL' : 'wristR';
     const hp = s === 1 ? 'hipL' : 'hipR';
     const kn = s === 1 ? 'kneeL' : 'kneeR';
     p.push(
-      { joint: sh, make: cyl(0.04, 0.034, 0.3), at: [s * 0.2, 1.27, 0] },
-      { joint: el, make: cyl(0.034, 0.028, 0.28), at: [s * 0.2, 0.98, 0] },
-      { joint: el, make: box(0.045, 0.085, 0.03), at: [s * 0.2, 0.795, 0] },
+      { joint: sh, make: () => new SphereGeometry(0.042, 14, 10), at: [s * 0.18, 1.42, 0] },
+      { joint: sh, make: cyl(0.04, 0.034, 0.3), at: [s * 0.18, 1.27, 0] },
+      { joint: el, make: cyl(0.034, 0.028, 0.28), at: [s * 0.18, 0.98, 0] },
+      { joint: wr, make: box(0.045, 0.085, 0.03), at: [s * 0.18, 0.795, 0] },
+      { joint: hp, make: () => new SphereGeometry(0.07, 14, 10), at: [s * 0.1, 0.8, 0] },
       { joint: hp, make: cyl(0.07, 0.052, 0.4), at: [s * 0.1, 0.6, 0] },
       { joint: kn, make: cyl(0.05, 0.034, 0.38), at: [s * 0.1, 0.21, 0] },
       { joint: kn, make: box(0.08, 0.055, 0.22), at: [s * 0.1, 0.03, 0.055] },
@@ -288,7 +301,7 @@ export const MAN_RIG: Rig = { id: 'man', joints: Object.keys(HUMAN_BASE), def: t
 export const WOMAN_RIG: Rig = {
   id: 'woman',
   joints: Object.keys(HUMAN_BASE),
-  def: toDef(HUMAN_BASE, { shoulderL: [0.2, 1.42, 0], shoulderR: [-0.2, 1.42, 0], elbowL: [0.2, 1.12, 0], elbowR: [-0.2, 1.12, 0], hipL: [0.1, 0.8, 0], hipR: [-0.1, 0.8, 0], kneeL: [0.1, 0.4, 0], kneeR: [-0.1, 0.4, 0] }),
+  def: toDef(HUMAN_BASE, { shoulderL: [0.18, 1.42, 0], shoulderR: [-0.18, 1.42, 0], elbowL: [0.18, 1.12, 0], elbowR: [-0.18, 1.12, 0], wristL: [0.18, 0.84, 0], wristR: [-0.18, 0.84, 0], hipL: [0.1, 0.8, 0], hipR: [-0.1, 0.8, 0], kneeL: [0.1, 0.4, 0], kneeR: [-0.1, 0.4, 0] }),
   parts: womanParts,
   groups: HUMAN_GROUPS,
   poses: HUMAN_POSES,

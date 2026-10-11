@@ -18,14 +18,18 @@ import {
   Vector3,
 } from 'three';
 import { chairGeometry, tableGeometry } from './furniture';
+import { HOUSE_KINDS, HouseKind, houseGeometry } from './house';
+import { NATURE_KINDS, NatureKind, natureGeometry } from './village';
 import { DEFAULT_OPENING, Opening, isWallType, wallGeometry } from './wall';
 import { Angles, JointName, Pose, jointFrames, jointPosition, rigGeometry, toMeshSpace } from './figure';
 import { ANIMAL_LABELS, AnimalType, isAnimalType } from './animalRigs';
 import { isPosable, rigOf } from './rigs';
 import { restSize } from './figure';
 
-export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair';
+export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair' | HouseKind | NatureKind;
 export type ObjectType = BaseType | AnimalType;
+
+const isHouseOrNature = (t: ObjectType): boolean => (HOUSE_KINDS as string[]).includes(t) || (NATURE_KINDS as string[]).includes(t);
 
 /** Prikaz objektov: mavec, samo robovi (brez ploskev) ali oboje. */
 export type ObjectStyle = 'solid' | 'edges' | 'both';
@@ -64,6 +68,17 @@ export const TYPE_LABELS: Record<ObjectType, string> = {
   wallWindow: 'Stena z oknom',
   table: 'Miza',
   chair: 'Stol',
+  house: 'Hiša',
+  houseHip: 'Hiša (štirikapna)',
+  houseTwo: 'Hiša z nadstropjem',
+  cottage: 'Koča',
+  barn: 'Skedenj',
+  church: 'Cerkev',
+  road: 'Cesta',
+  tree: 'Drevo',
+  pine: 'Smreka',
+  bush: 'Grm',
+  yard: 'Dvorišče',
 };
 
 const DEFAULT_SIZE: Partial<Record<ObjectType, Triple>> = {
@@ -81,6 +96,17 @@ const DEFAULT_SIZE: Partial<Record<ObjectType, Triple>> = {
   wallWindow: [3, 2.6, 0.2],
   table: [1.4, 0.75, 0.8],
   chair: [0.45, 0.9, 0.45],
+  house: [8, 5.5, 6],
+  houseHip: [8, 5, 6],
+  houseTwo: [9, 7.5, 7],
+  cottage: [6, 4.2, 5],
+  barn: [10, 6.5, 7],
+  church: [7, 14, 18],
+  road: [4, 0.05, 30],
+  tree: [4, 6, 4],
+  pine: [3, 8, 3],
+  bush: [1.4, 1, 1.4],
+  yard: [10, 1, 8],
 };
 
 /** Vsi objekti si delijo isti beli mat material (mavčni videz). */
@@ -104,7 +130,7 @@ export function buildEdges(type: ObjectType, size: Triple, pose?: Pose, opening?
     return new EdgesGeometry(buildGeometry(type, size, pose, opening), 1);
   } else if (type === 'dog' || type === 'horse' || type === 'elephant' || isAnimalType(type)) {
     return new EdgesGeometry(rigGeometry(rigOf(type)!, pose ?? {}, size, true), 12);
-  } else if (type === 'table' || type === 'chair') {
+  } else if (type === 'table' || type === 'chair' || isHouseOrNature(type)) {
     return new EdgesGeometry(buildGeometry(type, size), 1);
   } else if (type === 'box' || type === 'wall' || type === 'figure' || type === 'woman') {
     return new EdgesGeometry(buildGeometry(type, size, pose), type === 'box' || type === 'wall' ? 1 : 35);
@@ -154,6 +180,19 @@ export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, openi
       return tableGeometry(size);
     case 'chair':
       return chairGeometry(size);
+    case 'house':
+    case 'houseHip':
+    case 'houseTwo':
+    case 'cottage':
+    case 'barn':
+    case 'church':
+      return houseGeometry(type, size);
+    case 'road':
+    case 'tree':
+    case 'pine':
+    case 'bush':
+    case 'yard':
+      return natureGeometry(type, size);
     case 'wallDoor':
     case 'wallWindow':
       return wallGeometry(size, { ...DEFAULT_OPENING[type], ...opening });
@@ -202,6 +241,9 @@ function defaultRigSize(type: ObjectType): Triple {
   const s = rig ? restSize(rig) : [1, 1, 1];
   return [Math.round(s[0] * 100) / 100, Math.round(s[1] * 100) / 100, Math.round(s[2] * 100) / 100];
 }
+
+/** Privzeta velikost objekta ob dodajanju (m). */
+export const defaultSize = (type: ObjectType): Triple => [...(DEFAULT_SIZE[type] ?? defaultRigSize(type))] as Triple;
 
 const jointMat = new MeshBasicMaterial({ color: 0xffb703, depthTest: false, transparent: true });
 const jointMatActive = new MeshBasicMaterial({ color: 0xe5242b, depthTest: false, transparent: true });

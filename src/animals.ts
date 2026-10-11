@@ -105,8 +105,9 @@ export function makeQuad(id: string, s: QuadSpec): Rig {
     if (s.tail === 'long') p.push({ joint: 'tail', make: (g) => cylG(g, s.neckR * 0.35, s.neckR * 0.2, s.tailL).rotateX(0.7).translate(T.x, T.y - s.tailL * 0.1, T.z - s.tailL * 0.3) });
     else if (s.tail === 'short') p.push({ joint: 'tail', make: (g) => ellG(g, s.neckR * 0.35, s.neckR * 0.35, s.tailL * 0.5).translate(T.x, T.y, T.z - s.tailL * 0.3) });
     else if (s.tail === 'tuft') {
-      p.push({ joint: 'tail', make: (g) => cylG(g, s.neckR * 0.2, s.neckR * 0.15, s.tailL).translate(T.x, T.y - s.tailL * 0.45, T.z - s.tailL * 0.05) });
-      p.push({ joint: 'tail', make: (g) => ellG(g, s.neckR * 0.4, s.neckR * 0.9, s.neckR * 0.4).translate(T.x, T.y - s.tailL * 1.0, T.z - s.tailL * 0.05) });
+      const tl = Math.min(s.tailL, T.y - s.neckR * 0.9 - 0.03); // šop ne sme segati pod tla
+      p.push({ joint: 'tail', make: (g) => cylG(g, s.neckR * 0.2, s.neckR * 0.15, tl).translate(T.x, T.y - tl * 0.45, T.z - tl * 0.05) });
+      p.push({ joint: 'tail', make: (g) => ellG(g, s.neckR * 0.4, s.neckR * 0.9, s.neckR * 0.4).translate(T.x, T.y - tl * 1.0, T.z - tl * 0.05) });
     } else p.push({ joint: 'tail', make: (g) => cylG(g, s.neckR * 0.15, s.neckR * 0.1, s.tailL).rotateZ(1.0).rotateX(0.3).translate(T.x + 0.02, T.y + s.tailL * 0.2, T.z - s.tailL * 0.2) });
 
     // noge

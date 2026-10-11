@@ -5,6 +5,7 @@ import { isPosable, rigOf } from './rigs';
 import { applyScene, blankSceneFile, createScene, currentSceneId, deleteScene, downloadBlob, downloadScene, fileSafeName, getIndex, loadLocal, pickSceneFile, renameScene, resetScene, sceneNameOf, saveLocal, serialize, setCurrentScene } from './io';
 import { ANIMAL_TYPES } from './animalRigs';
 import { ObjectStyle, ObjectType, TYPE_LABELS } from './objects';
+import { villageScene } from './example-village';
 import { DEFAULT_OPENING, clampOpening, isWallType } from './wall';
 import { PROJECTION_LABELS } from './projection';
 import { SceneView, TransformMode, ViewMode } from './scene';
@@ -21,6 +22,17 @@ const ICONS: Record<string, string> = {
   woman: '<circle cx="12" cy="5" r="2.5"/><path d="M12 8l-4.5 10h9zM10 18v3M14 18v3"/>',
   table: '<path d="M3 9h18M5 9v11M19 9v11M7 9v6M17 9v6"/>',
   chair: '<path d="M7 4v16M7 12h10v8M17 12v8M7 4h2"/>',
+  house: '<path d="M3 11 12 4l9 7M5 10v10h14V10M10 20v-5h4v5"/>',
+  houseHip: '<path d="M2 12 8 5h8l6 7M5 12v8h14v-8M10 20v-4h4v4"/>',
+  houseTwo: '<path d="M3 9 12 3l9 6M5 8v13h14V8M9 12h2M13 12h2M9 17h2M13 17h2"/>',
+  cottage: '<path d="M2 13 12 6l10 7M5 12v8h14v-8M9 20v-4h3v4M15 14h2v2h-2z"/>',
+  barn: '<path d="M3 11 7 5h10l4 6v9H3zM9 20v-7h6v7M9 13l6 7M15 13l-6 7"/>',
+  church: '<path d="M12 2v4M10 4h4M8 10l4-4 4 4v11H8zM3 21v-7l5-3M21 21v-7l-5-3M10.5 21v-4h3v4"/>',
+  road: '<path d="M8 3 4 21M16 3l4 18M12 4v3M12 10v3M12 16v3"/>',
+  tree: '<circle cx="12" cy="9" r="6"/><path d="M12 15v6M9 21h6"/>',
+  pine: '<path d="M12 3 7 10h3l-4 6h12l-4-6h3zM12 16v5"/>',
+  bush: '<circle cx="8" cy="15" r="4"/><circle cx="16" cy="15" r="4"/><circle cx="12" cy="11" r="4"/><path d="M4 19h16"/>',
+  yard: '<path d="M3 20V8h18v12M3 20h18M7 8v12M12 8v12M17 8v12M3 12h18"/>',
   wall: '<path d="M3 5h18v14H3zM3 10h18M3 15h18M9 5v5M15 10v5M9 15v4"/>',
   wallDoor: '<path d="M4 4h16v16H4zM9 20V10h6v10"/>',
   wallWindow: '<path d="M4 4h16v16H4zM8 8h8v6H8z"/>',
@@ -212,14 +224,14 @@ export class UI {
     this.afterLoad();
   }
 
-  private newScene(kind: 'blank' | 'default' | 'copy'): void {
+  private newScene(kind: 'blank' | 'default' | 'copy' | 'village'): void {
     const idx = getIndex();
-    const base = kind === 'copy' ? `${idx.items.find((m) => m.id === idx.current)?.name ?? 'Scena'} (kopija)` : `Scena ${idx.items.length + 1}`;
+    const base = kind === 'village' ? 'Podeželska vas' : kind === 'copy' ? `${idx.items.find((m) => m.id === idx.current)?.name ?? 'Scena'} (kopija)` : `Scena ${idx.items.length + 1}`;
     const name = prompt('Ime nove scene', base);
     if (name === null) return;
     clearTimeout(this.saveTimer);
     saveLocal(this.state, this.view.store);
-    const data = kind === 'blank' ? blankSceneFile() : kind === 'copy' ? serialize(this.state, this.view.store) : null;
+    const data = kind === 'village' ? villageScene() : kind === 'blank' ? blankSceneFile() : kind === 'copy' ? serialize(this.state, this.view.store) : null;
     this.switchScene(createScene(name.trim() || base, data));
   }
 
@@ -292,6 +304,7 @@ export class UI {
     mk('+ Prazna', () => this.newScene('blank'));
     mk('+ Privzeta', () => this.newScene('default'));
     mk('Podvoji', () => this.newScene('copy'));
+    mk('+ Primer: vas', () => this.newScene('village'));
     return this.card('Scene', false, list, btns);
   }
 
@@ -394,31 +407,35 @@ export class UI {
     window.addEventListener('pointerdown', (e) => {
       if (!sizePop.contains(e.target as Node)) sizePop.style.display = 'none';
     });
-    // živali: ena ikona odpre seznam
-    const animals: ObjectType[] = ['dog', 'horse', 'elephant', ...ANIMAL_TYPES];
-    const ab = el('button', '', icon('dog'));
-    ab.title = 'Živali';
-    const pop = el('div', 'popover');
-    pop.hidden = true;
-    for (const t of animals) {
-      const b = el('button', '', TYPE_LABELS[t]);
-      b.onclick = () => {
-        add(t);
-        pop.hidden = true;
+    // skupine (živali, hiše, okolje): ena ikona odpre seznam
+    const group = (iconName: string, title: string, types: ObjectType[]) => {
+      const gb = el('button', '', icon(iconName));
+      gb.title = title;
+      const pop = el('div', 'popover');
+      pop.hidden = true;
+      for (const t of types) {
+        const b = el('button', '', TYPE_LABELS[t]);
+        b.onclick = () => {
+          add(t);
+          pop.hidden = true;
+        };
+        pop.append(b);
+      }
+      gb.onclick = (e) => {
+        e.stopPropagation();
+        pop.hidden = !pop.hidden;
+        pop.style.top = `${gb.offsetTop}px`;
       };
-      pop.append(b);
-    }
-    ab.onclick = (e) => {
-      e.stopPropagation();
-      pop.hidden = !pop.hidden;
-      pop.style.top = `${ab.offsetTop}px`;
+      window.addEventListener('pointerdown', (e) => {
+        if (!pop.contains(e.target as Node)) pop.hidden = true;
+      });
+      this.addbar.append(gb, pop);
     };
-    window.addEventListener('pointerdown', (e) => {
-      if (!pop.contains(e.target as Node)) pop.hidden = true;
-    });
-    this.addbar.append(ab, pop);
+    group('dog', 'Živali', ['dog', 'horse', 'elephant', ...ANIMAL_TYPES]);
     const rest: Array<[ObjectType, string]> = [['wall', 'Stena'], ['wallDoor', 'Stena z vrati'], ['wallWindow', 'Stena z oknom'], ['table', 'Miza'], ['chair', 'Stol']];
     rest.forEach(([t, n]) => btn(t, n));
+    group('house', 'Hiše', ['house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church']);
+    group('tree', 'Okolje', ['road', 'yard', 'tree', 'pine', 'bush']);
     this.root.append(this.addbar);
   }
 
@@ -583,21 +600,22 @@ export class UI {
         alert(e instanceof Error ? e.message : String(e));
       }
     };
-    const btn = (label: string, fn: () => void | Promise<void>) => {
+    const btn = (label: string, fn: () => void | Promise<void>, tip?: string) => {
       const b = el('button', 'btn', label);
+      if (tip) b.title = tip;
       b.onclick = run(fn);
       return b;
     };
     const files = el('div', 'btns');
     files.append(
-      btn('Shrani JSON', () => downloadScene(state, view.store)),
-      btn('Odpri JSON', async () => {
+      btn('Shrani sceno', () => downloadScene(state, view.store), 'Prenese sceno kot datoteko JSON'),
+      btn('Odpri sceno', async () => {
         const data = await pickSceneFile();
         applyScene(data, state, view.store);
         const name = sceneNameOf(data);
         if (name) renameScene(currentSceneId(), name);
         this.afterLoad();
-      }),
+      }, 'Odpre sceno iz datoteke JSON'),
       btn('PNG + vodila', async () => downloadBlob(await view.exportPng(2400, true), `${fileSafeName()}-kader-z-vodili.png`)),
       btn('PNG čisto', async () => downloadBlob(await view.exportPng(2400, false), `${fileSafeName()}-kader.png`)),
     );

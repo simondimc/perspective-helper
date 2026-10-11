@@ -19,7 +19,7 @@ export function serialize(state: AppState, store: ObjectStore): SceneFile {
   return { version: FILE_VERSION, name: currentSceneName(), objects: structuredClone(store.list()), camera: { ...state.camera }, light: { ...state.light }, guides: { ...state.guides }, view: { ...state.view } };
 }
 
-const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair', ...ANIMAL_TYPES];
+const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair', 'house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church', 'road', 'tree', 'pine', 'bush', 'yard', ...ANIMAL_TYPES];
 const isTriple = (v: unknown): v is Triple => Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && isFinite(n));
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
