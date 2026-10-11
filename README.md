@@ -4,6 +4,8 @@ Spletno orodje za pomoč in planiranje pred risanjem ali slikanjem v perspektivi
 Postaviš preprosto 3D sceno (škatla, krogla, valj, stožec), kamero in luč; orodje
 prikaže perspektivna vodila (horizont, bežišča, snope črt) ter tone v "mavčnem" videzu.
 
+**Spletna različica: https://simondimc.github.io/perspective-helper/**
+
 ## Zagon
 
 ```bash
