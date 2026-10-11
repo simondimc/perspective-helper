@@ -700,7 +700,7 @@ export class UI {
     side.append(this.sceneList(), this.objectList(), this.poseCard(), camCard, lightCard, guidesCard, viewCard, fileCard);
     // navedba virov za primere mest (obvezna po licenci ODbL)
     const credits = el('div', 'credits');
-    credits.innerHTML = 'Primeri mest (Ljubljana, Pariz, London, Tokio, New York): stavbe, ulice in vode © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">prispevki OpenStreetMap</a> (licenca ODbL); višine terena: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">AWS Terrain Tiles</a>.';
+    credits.innerHTML = 'Primeri mest (Ljubljana, Pariz, London, Tokio, New York, Rim, Benetke): stavbe, ulice in vode © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">prispevki OpenStreetMap</a> (licenca ODbL); višine terena: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">AWS Terrain Tiles</a>.';
     side.append(credits);
     this.root.append(side, toggle);
   }

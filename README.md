@@ -71,6 +71,11 @@ modula `projection`. Predloge so le omejitve nad temi parametri.
 Y navzgor, enote v metrih. Kamera pri yaw=0 gleda v smeri −Z; pozitiven yaw obrne kamero v desno,
 pozitiven pitch navzgor. Goriščna razdalja je 35 mm ekvivalent (daljša stranica kadra = 36 mm).
 
+## Licence
+
+- **Koda** (vse razen `src/data/`) je pod licenco MIT, glej [LICENSE](LICENSE).
+- **Podatki primerov mest** v `src/data/*.json` so izpeljani iz podatkov © prispevkov OpenStreetMap (licenca ODbL; izpeljana zbirka ostane pod ODbL) in višin AWS Terrain Tiles. Podrobnosti in navedbe virov so v [src/data/README.md](src/data/README.md).
+
 ## Viri podatkov
 
-Primeri mest (Ljubljana, Pariz, London, Tokio, New York) so narejeni iz podatkov © prispevkov OpenStreetMap (licenca ODbL, https://www.openstreetmap.org/copyright). Višine terena so iz AWS Terrain Tiles (https://registry.opendata.aws/terrain-tiles/). Orodja za pripravo so v `tools/osm/`.
+Primeri mest (Ljubljana, Pariz, London, Tokio, New York, Rim, Benetke) so narejeni iz podatkov © prispevkov OpenStreetMap (licenca ODbL, https://www.openstreetmap.org/copyright). Višine terena so iz AWS Terrain Tiles (https://registry.opendata.aws/terrain-tiles/). Orodja za pripravo so v `tools/osm/`.
