@@ -45,7 +45,7 @@ import { JointName, anglesFromQuaternion, jointFrames, jointPosition, jointQuate
 import { isPosable, rigOf } from './rigs';
 import { HandleKind, applyDrag, hitTest } from './handles';
 import { Lighting } from './lighting';
-import { ObjectStore, localAxes, objectQuaternion, terrainMaterial } from './objects';
+import { ObjectParams, ObjectStore, localAxes, objectQuaternion, terrainMaterial } from './objects';
 import { AppState } from './state';
 
 export type ViewMode = 'split' | 'editor' | 'frame';
@@ -889,15 +889,16 @@ export class SceneView {
 
   private guideInput(): GuideInput {
     const sel = this.cameraSelected ? undefined : this.store.selected();
-    const boxes: GuideBox[] = this.store.list().map((o) => {
+    const cornersOf = (o: ObjectParams): Vector3[] => {
       const q = objectQuaternion(o);
       const corners: Vector3[] = [];
       for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
         corners.push(new Vector3((sx * o.size[0]) / 2, (sy * o.size[1]) / 2, (sz * o.size[2]) / 2).applyQuaternion(q).add(new Vector3(...o.position)));
       }
-      return { corners };
-    });
-    return { camera: this.state.camera, objectAxes: sel ? localAxes(sel) : null, boxes };
+      return corners;
+    };
+    const boxes: GuideBox[] = this.state.guides.boxes ? this.store.list().map((o) => ({ corners: cornersOf(o) })) : [];
+    return { camera: this.state.camera, objectAxes: sel ? localAxes(sel) : null, boxes, selected: sel ? { corners: cornersOf(sel) } : null };
   }
 
   /** Upodobi trenutni kader kompozicijske kamere v PNG; `longSide` je daljša stranica v pikslih. */

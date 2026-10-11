@@ -11,6 +11,8 @@ export interface GuideSettings {
   fanDensity: number;
   objectVps: boolean;
   objectFan: boolean;
+  /** Vodila izbranega objekta: robovi objekta, podaljšani do njegovih bežišč. */
+  objectEdges: boolean;
   /** Oznake bežišč: X/Y/Z ali A/B/C (A = X, B = Z, C = Y, kot na skicah). */
   labels: 'xyz' | 'abc';
   /** Ob bežišču izpiši goriščno razdaljo. */
@@ -28,10 +30,14 @@ export const DEFAULT_GUIDES: GuideSettings = {
   fanDensity: 12,
   objectVps: true,
   objectFan: false,
+  objectEdges: true,
   labels: 'xyz',
   showFocal: false,
   boxes: false,
 };
+
+/** Barve osi izbranega objekta (X′, Y′, Z′): različne od svetovnih osi (rdeča/zelena/modra) in od horizonta. */
+const OBJECT_COLORS = ['#ff8a00', '#9b51e0', '#00a8b5'];
 
 const COLORS = { x: '#e5484d', y: '#2fa84f', z: '#3e7bfa', horizon: '#ff2d95', object: '#ff9f1c', box: '#d7263d' };
 
@@ -321,6 +327,8 @@ export interface GuideInput {
   /** Lokalne osi izbranega objekta (svetovni koordinati) ali null. */
   objectAxes: Vector3[] | null;
   boxes?: GuideBox[];
+  /** Oglišča izbranega objekta (za podaljške robov proti njegovim bežiščem). */
+  selected?: GuideBox | null;
 }
 
 /** Nariše perspektivna vodila v kader velikosti w×h; `scale` poveča debeline črt pri izvozu, `pad` je papir okoli kadra. */
@@ -386,8 +394,38 @@ export function drawGuides(ctx: CanvasRenderingContext2D, w: number, h: number, 
 
   if (g.objectVps && input.objectAxes) {
     input.objectAxes.forEach((dir, i) => {
-      drawVanishing(ctx, proj, toCam(dir), COLORS.object, `${names[i]}′`, null, g.objectFan ? g.fanDensity : 0, w, h, R, s);
+      drawVanishing(ctx, proj, toCam(dir), OBJECT_COLORS[i], `${names[i]}′`, null, g.objectFan ? g.fanDensity : 0, w, h, R, s);
     });
+  }
+
+  if (g.objectEdges && input.selected) {
+    // robovi izbranega objekta, podaljšani v obe smeri: skupine vzporednih robov se stekajo v bežišča objekta
+    const camPos = cameraPosition(input.camera);
+    const T = 6000;
+    ctx.lineWidth = 1.3 * s;
+    ctx.globalAlpha = 0.9;
+    const c = input.selected.corners;
+    for (let i = 0; i < 8; i++) {
+      for (const bit of [4, 2, 1]) {
+        if (i & bit) continue;
+        ctx.strokeStyle = OBJECT_COLORS[bit === 4 ? 0 : bit === 2 ? 1 : 2]; // 4 = lokalna X, 2 = Y, 1 = Z
+        const a = c[i];
+        const d = new Vector3().subVectors(c[i | bit], a).normalize();
+        strokeCurve(
+          ctx,
+          proj,
+          (t) => {
+            const u = 2 * t - 1;
+            return toCam(new Vector3().copy(a).addScaledVector(d, T * u * Math.abs(u)).sub(camPos));
+          },
+          240,
+          w,
+          h,
+          R,
+        );
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   if (g.boxes && input.boxes) {

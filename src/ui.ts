@@ -640,6 +640,7 @@ export class UI {
     more.append(
       this.chip('Snop črt', () => g.fan, gd(() => (g.fan = !g.fan))),
       this.chip('Objekt', () => g.objectVps, gd(() => (g.objectVps = !g.objectVps)), '#ff9f1c'),
+      this.chip('Vodila objekta', () => g.objectEdges, gd(() => (g.objectEdges = !g.objectEdges)), '#ff9f1c'),
       this.chip('Okvirji', () => g.boxes, gd(() => (g.boxes = !g.boxes)), '#d7263d'),
       this.chip('A B C', () => g.labels === 'abc', gd(() => (g.labels = g.labels === 'abc' ? 'xyz' : 'abc'))),
       this.chip('mm', () => g.showFocal, gd(() => (g.showFocal = !g.showFocal))),
@@ -989,11 +990,11 @@ export class UI {
       if (id && !view.cameraSelected) this.renameObject(id);
     };
     bar.append(this.selName);
-    type Key = 'px' | 'py' | 'pz' | 'ry' | 'sx' | 'sy' | 'sz';
+    type Key = 'px' | 'py' | 'pz' | 'rx' | 'ry' | 'rz' | 'sx' | 'sy' | 'sz';
     const read = (k: Key): number => {
       const p = view.store.selected();
       if (!p) return 0;
-      return { px: p.position[0], py: p.position[1], pz: p.position[2], ry: p.rotation[1], sx: p.size[0], sy: p.size[1], sz: p.size[2] }[k];
+      return { px: p.position[0], py: p.position[1], pz: p.position[2], rx: p.rotation[0], ry: p.rotation[1], rz: p.rotation[2], sx: p.size[0], sy: p.size[1], sz: p.size[2] }[k];
     };
     const write = (k: Key, v: number) => {
       const p = view.store.selected();
@@ -1004,7 +1005,9 @@ export class UI {
       if (k === 'px') pos[0] = v;
       else if (k === 'py') pos[1] = v;
       else if (k === 'pz') pos[2] = v;
+      else if (k === 'rx') rot[0] = v;
       else if (k === 'ry') rot[1] = v;
+      else if (k === 'rz') rot[2] = v;
       else size[{ sx: 0, sy: 1, sz: 2 }[k]] = Math.max(0.01, v);
       view.store.update(p.id, { position: pos, rotation: rot, size });
     };
@@ -1013,7 +1016,9 @@ export class UI {
     add('X', 'px', -15, 15, 0.05, 'm');
     add('Y (višina)', 'py', 0, 10, 0.05, 'm');
     add('Z', 'pz', -15, 15, 0.05, 'm');
-    add('Rotacija', 'ry', -180, 180, 1, '°');
+    add('Rotacija X', 'rx', -180, 180, 1, '°');
+    add('Rotacija Y', 'ry', -180, 180, 1, '°');
+    add('Rotacija Z', 'rz', -180, 180, 1, '°');
     add('Širina', 'sx', 0.05, 8, 0.05, 'm');
     add('Višina', 'sy', 0.05, 8, 0.05, 'm');
     add('Globina', 'sz', 0.05, 8, 0.05, 'm');

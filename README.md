@@ -45,7 +45,8 @@ npm run build    # preverjanje tipov + produkcijska gradnja
   - **2-točkovna**: pitch in roll sta 0, za kadriranje gor/dol služi *lens shift Y*, zato so navpičnice v kadru navpične.
   - **3-točkovna**: prosta kamera (yaw, pitch, roll).
 - Vodila: horizont, bežišča X/Y/Z (rdeča/zelena/modra), snop črt iz bežišč, bežišča izbranega
-  objekta (oranžna, iz njegovih lokalnih osi). Bežišče zunaj kadra je označeno s puščico na robu.
+  objekta (oranžna, iz njegovih lokalnih osi) in njegova vodila: robovi izbranega objekta, podaljšani do njegovih
+  bežišč (vključi/izključi z »Vodila objekta«). Bežišče zunaj kadra je označeno s puščico na robu.
 - Luč: azimut (0° = od spredaj), višina, razmerje glavna luč : okolica, izpostavitev.
 - Datoteka: prenos/nalaganje JSON, shranjevanje v brskalnik (scena se samodejno shranjuje in
   obnovi ob zagonu), izvoz PNG kadra (z vodili ali brez, daljša stranica 2400 px).
