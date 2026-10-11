@@ -5,6 +5,7 @@ import { isPosable, rigOf } from './rigs';
 import { SceneFile, applyScene, blankSceneFile, createScene, currentSceneId, deleteScene, downloadBlob, downloadScene, fileSafeName, getIndex, loadLocal, pickSceneFile, renameScene, resetScene, sceneNameOf, saveLocal, serialize, setCurrentScene } from './io';
 import { ANIMAL_TYPES } from './animalRigs';
 import { ObjectStyle, ObjectType, TYPE_LABELS } from './objects';
+import { History } from './history';
 import { DEFAULT_OPENING, clampOpening, isWallType } from './wall';
 import { PROJECTION_LABELS } from './projection';
 import { SceneView, TransformMode, ViewMode } from './scene';
@@ -69,6 +70,8 @@ const ICONS: Record<string, string> = {
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   lift: '<path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>',
+  undo: '<path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
+  redo: '<path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/>',
   hand: '<path d="M8 12V6a1.5 1.5 0 0 1 3 0v5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2 6-5.5 6S6 18 5 15l-1.2-3a1.4 1.4 0 0 1 2.4-1.2L8 13"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
 };
@@ -94,10 +97,12 @@ export class UI {
   private selbar = el('div');
   private selName = el('span', 'name');
   private warnedStorage = false;
+  private history!: History;
   private stack = el('div', 'bottomstack');
 
   constructor(private view: SceneView, private state: AppState) {
     this.hint.id = 'hint';
+    this.history = new History(state, view.store, () => this.afterHistory());
     this.buildBar();
     this.buildAddbar();
     this.buildSidebar();
@@ -223,6 +228,21 @@ export class UI {
     const modes: Array<[ViewMode, string]> = [['split', 'Scena + kader'], ['editor', 'Scena'], ['frame', 'Kader']];
     bar.append(this.seg(modes, () => view.mode, (m) => view.setMode(m)));
     const tools: Array<[TransformMode, string, string]> = [['translate', 'Premik (W)', 'translate'], ['rotate', 'Rotacija (E)', 'rotate'], ['scale', 'Velikost (R)', 'scale']];
+    const histBar = el('div', 'seg');
+    const undoBtn = el('button', '', icon('undo'));
+    undoBtn.title = 'Razveljavi (Ctrl/Cmd + Z)';
+    undoBtn.onclick = () => this.undo();
+    const redoBtn = el('button', '', icon('redo'));
+    redoBtn.title = 'Ponovi (Ctrl/Cmd + Y ali Ctrl/Cmd + Shift + Z)';
+    redoBtn.onclick = () => this.redo();
+    histBar.append(undoBtn, redoBtn);
+    const syncHist = () => {
+      undoBtn.disabled = !this.history.canUndo;
+      redoBtn.disabled = !this.history.canRedo;
+    };
+    this.history.onChange = syncHist;
+    syncHist();
+    bar.append(histBar);
     const navBtn = el('button', '', icon('hand'));
     navBtn.title = 'Samo pogled (H): klik in vlečenje v sceni ne izbereta in ne premakneta predmetov';
     navBtn.onclick = () => {
@@ -1072,12 +1092,33 @@ export class UI {
     this.view.store.setStyle(this.state.view.objectStyle);
     this.sync();
     this.syncSelection();
+    this.history.reset();
     this.scheduleSave();
+  }
+
+  /** Po razveljavi/ponovi: osveži kamero, luč, prikaz in vmesnik (zgodovine ne ponastavi). */
+  private afterHistory(): void {
+    this.view.refreshCamera();
+    this.view.refreshLight();
+    this.view.applySnap();
+    this.view.store.setStyle(this.state.view.objectStyle);
+    this.sync();
+    this.syncSelection();
+    this.scheduleSave();
+  }
+
+  private undo(): void {
+    this.history.undo();
+  }
+
+  private redo(): void {
+    this.history.redo();
   }
 
   private scheduleSave(): void {
     clearTimeout(this.saveTimer);
     this.saveTimer = window.setTimeout(() => {
+      this.history.commit();
       if (!saveLocal(this.state, this.view.store) && !this.warnedStorage) {
         this.warnedStorage = true;
         alert('Brskalnik nima več prostora za shranjevanje scen, zato se te scene ne bo dalo obnoviti ob osvežitvi. Sceno shrani v datoteko (Datoteka → Shrani sceno) ali izbriši kakšno staro sceno (kartica Scene).');
@@ -1098,6 +1139,13 @@ export class UI {
         e.preventDefault();
         const order = ['split', 'frame', 'editor'] as const;
         this.view.setMode(order[(order.indexOf(this.view.mode) + 1) % 3]);
+      } else if ((e.ctrlKey || e.metaKey) && key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) this.redo();
+        else this.undo();
+      } else if ((e.ctrlKey || e.metaKey) && key === 'y') {
+        e.preventDefault();
+        this.redo();
       } else if ((key === 'delete' || key === 'backspace') && store.selectedId) {
         store.remove(store.selectedId);
       } else if (key === 'd' && (e.ctrlKey || e.metaKey) && store.selectedId) {

@@ -591,6 +591,13 @@ export class ObjectStore {
     return p;
   }
 
+  /** Vstavi predmet z znanim id (obnovitev iz zgodovine). */
+  restore(p: ObjectParams): void {
+    if (this.items.has(p.id)) return;
+    this.insert(p);
+    this.emit();
+  }
+
   remove(id: string): void {
     const it = this.items.get(id);
     if (!it) return;
