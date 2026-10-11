@@ -45,7 +45,7 @@ import { JointName, anglesFromQuaternion, jointFrames, jointPosition, jointQuate
 import { isPosable, rigOf } from './rigs';
 import { HandleKind, applyDrag, hitTest } from './handles';
 import { Lighting } from './lighting';
-import { ObjectStore, localAxes, objectQuaternion } from './objects';
+import { ObjectStore, localAxes, objectQuaternion, terrainMaterial } from './objects';
 import { AppState } from './state';
 
 export type ViewMode = 'split' | 'editor' | 'frame';
@@ -116,7 +116,7 @@ interface AOView {
 export class SceneView {
   readonly scene = new Scene();
   readonly renderer: WebGLRenderer;
-  readonly editorCamera = new PerspectiveCamera(45, 1, 0.1, 500);
+  readonly editorCamera = new PerspectiveCamera(45, 1, 0.1, 3000);
   readonly comp = new CompositionCamera();
   readonly orbit: OrbitControls;
   readonly transform: TransformControls;
@@ -127,6 +127,8 @@ export class SceneView {
   readonly framePane = document.createElement('div');
   mode: ViewMode = 'split';
   transformMode: TransformMode = 'translate';
+  /** Samo pogled: klik in vlečenje v sceni ne izbereta in ne premakneta predmetov (samo vrtenje, pomik in povečava pogleda). */
+  navOnly = false;
   /** Izbrana je kompozicijska kamera (namesto objekta). */
   cameraSelected = false;
   /** Izbran sklep figure: gizmo zavrti ta sklep. */
@@ -181,12 +183,12 @@ export class SceneView {
     container.style.background = '#1b1b1d';
 
     this.scene.background = BACKGROUND;
-    this.scene.fog = new Fog(BACKGROUND, 80, 320);
+    this.scene.fog = new Fog(BACKGROUND, 500, 2600);
     this.lighting = new Lighting(this.scene, this.renderer);
 
     // tla: bela mat ravnina (sprejema sence) + mreža
     this.floorMat = new MeshStandardMaterial({ color: 0xc2c2c0, roughness: 0.95, metalness: 0 });
-    this.floor = new Mesh(new PlaneGeometry(1000, 1000), this.floorMat);
+    this.floor = new Mesh(new PlaneGeometry(8000, 8000), this.floorMat);
     this.floor.rotation.x = -Math.PI / 2;
     this.floor.receiveShadow = true;
     this.grid = new GridHelper(40, 40, 0x6f6f72, 0xb0b0b3);
@@ -233,6 +235,7 @@ export class SceneView {
 
     this.store.onChange(() => this.onStoreChange());
     this.store.onSelect(() => {
+      if (this.store.selectedId && this.navOnly) this.navOnly = false; // izbira (npr. s seznama) pomeni, da želimo urejati
       this.selectedJoint = null;
       if (this.store.selectedId) this.cameraSelected = false;
       this.updateAttachment();
@@ -362,6 +365,18 @@ export class SceneView {
     this.onSelectionChange();
   }
 
+  setNavOnly(on: boolean): void {
+    if (this.navOnly === on) return;
+    this.navOnly = on;
+    if (on) {
+      this.selectedJoint = null;
+      this.cameraSelected = false;
+      this.store.select(null);
+    }
+    this.updateAttachment();
+    this.onSelectionChange();
+  }
+
   setTransformMode(m: TransformMode): void {
     this.transformMode = m;
     this.selectedJoint = null;
@@ -407,6 +422,7 @@ export class SceneView {
   }
 
   private onPointerUp(e: PointerEvent): void {
+    if (this.navOnly) return;
     if (Math.hypot(e.clientX - this.downPos.x, e.clientY - this.downPos.y) > 5) return;
     if (this.gizmoDown) {
       this.gizmoDown = false;
@@ -453,6 +469,25 @@ export class SceneView {
     if (target) this.focusOn(target);
   }
 
+  /** Po nalaganju velike scene (mesto) postavi pogled urejevalnika tako, da je vidna cela scena. Majhnih scen ne premakne. */
+  frameAll(): void {
+    const box = new Box3();
+    for (const o of this.store.list()) {
+      if (o.type === 'terrain' || o.type === 'roads') continue;
+      box.expandByPoint(new Vector3(...o.position));
+    }
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new Vector3());
+    const radius = box.getSize(new Vector3()).length() / 2;
+    if (radius < 40) return;
+    center.y = Math.min(center.y, radius * 0.1);
+    const dir = new Vector3(0.45, 0.55, 1).normalize();
+    this.orbit.target.copy(center);
+    this.editorCamera.position.copy(center).addScaledVector(dir, Math.min(2200, radius * 1.7));
+    this.orbit.update();
+    this.invalidate();
+  }
+
   focusCamera(): void {
     this.focusOn(this.rig);
   }
@@ -497,24 +532,34 @@ export class SceneView {
   private onObjectDragStart(e: PointerEvent): void {
     // klik na gizem (os je pod kazalcem) ne sme spremeniti izbire; TransformControls ob spustu os ponastavi, zato si jo zapomnimo tukaj
     this.gizmoDown = e.button === 0 && !!this.transform.axis;
+    if (this.navOnly) return;
     if (e.button !== 0 || this.transformMode !== 'translate' || this.cameraSelected || this.selectedJoint || this.transform.axis) return;
     if (this.pickJoint(e)) return;
     this.paneRay(e);
-    const hit = this.raycaster.intersectObjects(this.store.group.children, true)[0];
-    let obj: Object3D | null = hit?.object ?? null;
-    if (!hit || obj?.userData.joint) return;
-    while (obj && !obj.userData.id) obj = obj.parent;
-    if (!obj) return;
-    const id = obj.userData.id as string;
+    const hits = this.raycaster.intersectObjects(this.store.group.children, true);
     const vertical = e.shiftKey || this.liftMode;
+    const idOf = (o: Object3D | null): string | null => {
+      while (o && !o.userData.id) o = o.parent;
+      return (o?.userData.id as string | undefined) ?? null;
+    };
+    // z Shift (dvig) ima prednost izbran predmet, tudi če ga drug predmet (cesta, teren, zid) delno prekriva
+    const selId = this.store.selectedId;
+    const selHit = vertical && selId ? hits.find((h) => !h.object.userData.joint && idOf(h.object) === selId) : undefined;
+    const hit = selHit ?? hits[0];
+    if (!hit || hit.object.userData.joint) return;
+    const id = idOf(hit.object);
+    if (!id) return;
     // objekt v zraku: običajno vedenje (gizmo); na tleh: povlek po tleh
     if (!vertical && !this.store.isOnFloor(id)) return;
     if (this.store.selectedId !== id) this.store.select(id);
     const mesh = this.store.mesh(id)!;
     const plane = new Plane();
     if (vertical) {
-      const n = new Vector3(this.editorCamera.position.x - hit.point.x, 0, this.editorCamera.position.z - hit.point.z).normalize();
-      plane.setFromNormalAndCoplanarPoint(n, hit.point);
+      const n = new Vector3(this.editorCamera.position.x - hit.point.x, 0, this.editorCamera.position.z - hit.point.z);
+      // pogled naravnost od zgoraj: vodoravne smeri ni, vzamemo smer kamere
+      if (n.lengthSq() < 1e-6) this.editorCamera.getWorldDirection(n).multiplyScalar(-1).setY(0);
+      if (n.lengthSq() < 1e-6) n.set(0, 0, 1);
+      plane.setFromNormalAndCoplanarPoint(n.normalize(), hit.point);
     } else {
       plane.setFromNormalAndCoplanarPoint(new Vector3(0, 1, 0), hit.point);
     }
@@ -693,9 +738,14 @@ export class SceneView {
     const white = frame && this.state.view.whiteBg;
     const bg = white ? PAPER_BG : BACKGROUND;
     this.scene.background = bg;
-    (this.scene.fog as Fog).color.copy(bg);
+    const fog = this.scene.fog as Fog;
+    fog.color.copy(bg);
+    // megla samo v kadru (atmosferska perspektiva); v urejevalniku bi ovirala pregled scene
+    fog.near = frame ? 500 : 1e6;
+    fog.far = frame ? 2600 : 2e6;
     const tint = frame && this.state.view.floorColor;
     if (tint) this.floorTintMat.color.set(tint);
+    terrainMaterial.color.set(tint ? tint : white ? 0xdadad8 : 0xc2c2c0).multiplyScalar(tint ? 0.78 : 1);
     this.floor.material = tint ? this.floorTintMat : white ? this.shadowFloorMat : this.floorMat;
     if (this.radialMat) (this.radialMat.uniforms.uBg.value as Vector3).set(bg.r, bg.g, bg.b);
   }
@@ -714,7 +764,7 @@ export class SceneView {
   private ensureRadial(): void {
     if (this.cube) return;
     this.cube = new WebGLCubeRenderTarget(1024, { type: HalfFloatType });
-    this.cubeCam = new CubeCamera(0.1, 400, this.cube);
+    this.cubeCam = new CubeCamera(0.1, 3000, this.cube);
     this.radialMat = new ShaderMaterial({
       vertexShader: RADIAL_VERT,
       fragmentShader: RADIAL_FRAG,

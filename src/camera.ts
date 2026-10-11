@@ -35,12 +35,12 @@ export interface CameraParams {
 }
 
 export const DEFAULT_CAMERA: CameraParams = {
-  mode: '2pt',
+  mode: '3pt',
   x: 5,
   z: 7,
   eyeHeight: 2.6,
   yaw: -35,
-  pitch: 0,
+  pitch: -15,
   roll: 0,
   focalMm: 35,
   shiftY: -0.15,
@@ -109,7 +109,7 @@ export function worldToCameraDir(p: CameraParams, worldDir: Vector3): Vec3 {
 
 /** Three.js kamera, ki sledi parametrom (vključno z zamikom leče). */
 export class CompositionCamera {
-  readonly camera = new PerspectiveCamera(50, 1.5, 0.1, 400);
+  readonly camera = new PerspectiveCamera(50, 1.5, 0.1, 3000);
 
   apply(p: CameraParams): void {
     const f = frameGeometry(p);

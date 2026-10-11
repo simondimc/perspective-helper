@@ -19,6 +19,9 @@ import {
 } from 'three';
 import { chairGeometry, tableGeometry } from './furniture';
 import { HOUSE_KINDS, HouseKind, houseGeometry } from './house';
+import { RoadPath, roadsGeometry } from './roads';
+import { terrainGeometry } from './terrain';
+import { CITY_KINDS, CityKind, cityGeometry } from './city';
 import { NATURE_KINDS, NatureKind, natureGeometry } from './village';
 import { DEFAULT_OPENING, Opening, isWallType, wallGeometry } from './wall';
 import { Angles, JointName, Pose, jointFrames, jointPosition, rigGeometry, toMeshSpace } from './figure';
@@ -26,10 +29,21 @@ import { ANIMAL_LABELS, AnimalType, isAnimalType } from './animalRigs';
 import { isPosable, rigOf } from './rigs';
 import { restSize } from './figure';
 
-export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair' | HouseKind | NatureKind;
+export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair' | HouseKind | NatureKind | CityKind | 'roads' | 'water';
 export type ObjectType = BaseType | AnimalType;
 
-const isHouseOrNature = (t: ObjectType): boolean => (HOUSE_KINDS as string[]).includes(t) || (NATURE_KINDS as string[]).includes(t);
+/** Dodatni parametri pokrajine. */
+export interface TerrainParams {
+  seed?: number;
+  flat?: number;
+  /** Teren iz podatkov: mreža višin (hn + 1)² vrednosti, vrstice od severa. */
+  heights?: number[];
+  hn?: number;
+  /** Omrežje cest (tip »roads«). */
+  paths?: RoadPath[];
+}
+
+const isHouseOrNature = (t: ObjectType): boolean => (HOUSE_KINDS as string[]).includes(t) || (NATURE_KINDS as string[]).includes(t) || (CITY_KINDS as string[]).includes(t);
 
 /** Prikaz objektov: mavec, samo robovi (brez ploskev) ali oboje. */
 export type ObjectStyle = 'solid' | 'edges' | 'both';
@@ -50,6 +64,13 @@ export interface ObjectParams {
   pose?: Pose;
   /** Odprtina v steni (vrata/okno); manjkajoče vrednosti so privzete. */
   opening?: Opening;
+  /** Pokrajina: seme šuma in delež ravnega središča (0–1); ali mreža višin iz podatkov. */
+  seed?: number;
+  flat?: number;
+  heights?: number[];
+  hn?: number;
+  /** Omrežje cest (tip »roads«): poti z absolutnimi koordinatami. */
+  paths?: RoadPath[];
 }
 
 export const TYPE_LABELS: Record<ObjectType, string> = {
@@ -74,11 +95,31 @@ export const TYPE_LABELS: Record<ObjectType, string> = {
   cottage: 'Koča',
   barn: 'Skedenj',
   church: 'Cerkev',
+  townhouse: 'Mestna hiša',
+  block: 'Blok',
+  tower: 'Stolpnica',
+  car: 'Avto (limuzina)',
+  hatch: 'Avto (hatchback)',
+  suv: 'SUV',
+  van: 'Kombi',
+  bus: 'Avtobus',
+  eiffel: 'Eifflov stolp',
+  ferris: 'Panoramsko kolo',
+  boat: 'Ladja',
+  colosseum: 'Koloseum',
   road: 'Cesta',
   tree: 'Drevo',
   pine: 'Smreka',
   bush: 'Grm',
   yard: 'Dvorišče',
+  terrain: 'Pokrajina',
+  roads: 'Omrežje cest',
+  water: 'Voda',
+  shell: 'Stavba s streho',
+  river: 'Reka',
+  bridge: 'Most',
+  hill: 'Hrib',
+  hayrack: 'Kozolec',
 };
 
 const DEFAULT_SIZE: Partial<Record<ObjectType, Triple>> = {
@@ -102,15 +143,41 @@ const DEFAULT_SIZE: Partial<Record<ObjectType, Triple>> = {
   cottage: [6, 4.2, 5],
   barn: [10, 6.5, 7],
   church: [7, 14, 18],
+  townhouse: [7, 11, 9],
+  block: [24, 21, 12],
+  tower: [20, 90, 20],
+  car: [1.8, 1.45, 4.5],
+  hatch: [1.75, 1.45, 3.9],
+  suv: [1.95, 1.75, 4.7],
+  van: [2.0, 2.4, 5.3],
+  bus: [2.55, 3.2, 12],
+  eiffel: [125, 330, 125],
+  ferris: [120, 135, 40],
+  boat: [4, 3.2, 15],
+  colosseum: [188, 48, 156],
   road: [4, 0.05, 30],
   tree: [4, 6, 4],
   pine: [3, 8, 3],
   bush: [1.4, 1, 1.4],
   yard: [10, 1, 8],
+  terrain: [800, 80, 800],
+  roads: [100, 1, 100],
+  water: [100, 1, 100],
+  shell: [10, 7, 8],
+  river: [20, 3, 100],
+  bridge: [24, 4.5, 8],
+  hill: [200, 60, 200],
+  hayrack: [8, 5, 3.2],
 };
 
 /** Vsi objekti si delijo isti beli mat material (mavčni videz). */
 export const plasterMaterial = new MeshStandardMaterial({ color: 0xf0f0ee, roughness: 0.9, metalness: 0 });
+
+/** Material pokrajine: barva tal (scena ga prilagaja ozadju), da se teren loči od neba in stavb. */
+/** Voda: modra površina (teče po poteh kot ceste, vendar z lastnim materialom). */
+export const waterMaterial = new MeshStandardMaterial({ color: 0x78a8cc, roughness: 0.35, metalness: 0 });
+
+export const terrainMaterial = new MeshStandardMaterial({ color: 0xc2c2c0, roughness: 0.95, metalness: 0 });
 
 function circle(rx: number, rz: number, y: number, n = 48): number[] {
   const out: number[] = [];
@@ -123,9 +190,11 @@ function circle(rx: number, rz: number, y: number, n = 48): number[] {
 }
 
 /** Robovi objekta (brez ploskev) za prikaz "žične" kocke, kot na skicah. */
-export function buildEdges(type: ObjectType, size: Triple, pose?: Pose, opening?: Opening): BufferGeometry {
+export function buildEdges(type: ObjectType, size: Triple, pose?: Pose, opening?: Opening, terrain?: TerrainParams): BufferGeometry {
   const [sx, sy, sz] = size;
   let pos: number[] = [];
+  if (type === 'terrain') return new EdgesGeometry(terrainGeometry(size, terrain?.seed, terrain?.flat, terrain?.heights, terrain?.hn), 35);
+  if (type === 'roads' || type === 'water') return new EdgesGeometry(roadsGeometry(terrain?.paths ?? []), 35);
   if (isWallType(type)) {
     return new EdgesGeometry(buildGeometry(type, size, pose, opening), 1);
   } else if (type === 'dog' || type === 'horse' || type === 'elephant' || isAnimalType(type)) {
@@ -158,9 +227,14 @@ export function buildEdges(type: ObjectType, size: Triple, pose?: Pose, opening?
   return g;
 }
 
-export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, opening?: Opening): BufferGeometry {
+export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, opening?: Opening, terrain?: TerrainParams): BufferGeometry {
   const [sx, sy, sz] = size;
   switch (type) {
+    case 'terrain':
+      return terrainGeometry(size, terrain?.seed, terrain?.flat, terrain?.heights, terrain?.hn);
+    case 'roads':
+    case 'water':
+      return roadsGeometry(terrain?.paths ?? []);
     case 'box':
     case 'wall':
       return new BoxGeometry(sx, sy, sz);
@@ -186,12 +260,30 @@ export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, openi
     case 'cottage':
     case 'barn':
     case 'church':
+    case 'shell':
       return houseGeometry(type, size);
+    case 'townhouse':
+    case 'block':
+    case 'tower':
+    case 'car':
+    case 'hatch':
+    case 'suv':
+    case 'van':
+    case 'bus':
+    case 'eiffel':
+    case 'ferris':
+    case 'boat':
+    case 'colosseum':
+      return cityGeometry(type, size);
     case 'road':
     case 'tree':
     case 'pine':
     case 'bush':
     case 'yard':
+    case 'river':
+    case 'bridge':
+    case 'hill':
+    case 'hayrack':
       return natureGeometry(type, size);
     case 'wallDoor':
     case 'wallWindow':
@@ -282,10 +374,15 @@ export class ObjectStore {
   }
 
   private createMesh(p: ObjectParams): Mesh {
-    const mesh = new Mesh(buildGeometry(p.type, p.size, p.pose, p.opening), plasterMaterial);
-    mesh.castShadow = true;
+    const mesh = new Mesh(buildGeometry(p.type, p.size, p.pose, p.opening, p), p.type === 'terrain' ? terrainMaterial : p.type === 'water' ? waterMaterial : plasterMaterial);
+    // ravne površine (voda, ceste) ne mečejo sence: sicer se na veliki sceni pojavi vzorec sence na sami površini
+    mesh.castShadow = p.type !== 'water' && p.type !== 'roads';
     mesh.receiveShadow = true;
     mesh.userData.id = p.id;
+    mesh.userData.terrain = p.type === 'terrain';
+    mesh.userData.water = p.type === 'water';
+    // pokrajine se v 3D ne da izbrati s klikom (bi zakrila vse za seboj in ovirala vrtenje pogleda); izbere se s seznama predmetov
+    if (p.type === 'terrain' || p.type === 'roads' || p.type === 'water') mesh.raycast = () => {};
     this.applyTransform(mesh, p);
     this.addEdges(mesh, p);
     this.applyStyle(mesh);
@@ -379,7 +476,7 @@ export class ObjectStore {
       old.geometry.dispose();
       mesh.remove(old);
     }
-    const lines = new LineSegments(buildEdges(p.type, p.size, p.pose, p.opening), edgeOverlay);
+    const lines = new LineSegments(buildEdges(p.type, p.size, p.pose, p.opening, p), edgeOverlay);
     lines.name = 'edges';
     lines.renderOrder = 10;
     lines.raycast = () => {};
@@ -388,7 +485,7 @@ export class ObjectStore {
 
   private applyStyle(mesh: Mesh): void {
     const lines = mesh.getObjectByName('edges') as LineSegments;
-    mesh.material = this.style === 'edges' ? ghostMaterial : plasterMaterial;
+    mesh.material = this.style === 'edges' ? ghostMaterial : (mesh.userData.terrain ? terrainMaterial : mesh.userData.water ? waterMaterial : plasterMaterial);
     mesh.receiveShadow = this.style !== 'edges';
     lines.visible = this.edgesVisible();
     lines.material = this.style === 'both' ? edgeDepth : edgeOverlay;
@@ -510,13 +607,22 @@ export class ObjectStore {
     this.selListeners.forEach((cb) => cb());
   }
 
+  /** Preimenuje predmet (geometrija se ne spremeni). */
+  rename(id: string, name: string): void {
+    const it = this.items.get(id);
+    const n = name.trim();
+    if (!it || !n) return;
+    it.params.name = n;
+    this.emit();
+  }
+
   /** Ročna sprememba parametrov (npr. iz UI): regenerira mesh. */
   update(id: string, patch: Partial<Omit<ObjectParams, 'id'>>): void {
     const it = this.items.get(id);
     if (!it) return;
     Object.assign(it.params, patch);
     it.mesh.geometry.dispose();
-    it.mesh.geometry = buildGeometry(it.params.type, it.params.size, it.params.pose, it.params.opening);
+    it.mesh.geometry = buildGeometry(it.params.type, it.params.size, it.params.pose, it.params.opening, it.params);
     this.addEdges(it.mesh, it.params);
     this.applyStyle(it.mesh);
     this.applyTransform(it.mesh, it.params);

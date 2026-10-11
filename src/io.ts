@@ -1,3 +1,4 @@
+import { compressToUTF16, decompressFromUTF16 } from 'lz-string';
 import { ANIMAL_TYPES } from './animalRigs';
 import { Pose } from './figure';
 import { ASPECTS, constrain, PerspectiveMode } from './camera';
@@ -7,6 +8,10 @@ import { AppState, defaultObjects, defaultState } from './state';
 
 export const FILE_VERSION = 1;
 const STORAGE_KEY = 'perspective-helper:scene';
+
+// velike scene (mesta) so stisnjene, da gre več scen v omejen pomnilnik brskalnika (~5 MB); stare nestisnjene zapise še beremo
+const pack = (json: string): string => `z:${compressToUTF16(json)}`;
+const unpack = (raw: string): string => (raw.startsWith('z:') ? (decompressFromUTF16(raw.slice(2)) ?? '') : raw);
 
 export interface SceneFile extends AppState {
   version: number;
@@ -19,7 +24,7 @@ export function serialize(state: AppState, store: ObjectStore): SceneFile {
   return { version: FILE_VERSION, name: currentSceneName(), objects: structuredClone(store.list()), camera: { ...state.camera }, light: { ...state.light }, guides: { ...state.guides }, view: { ...state.view } };
 }
 
-const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair', 'house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church', 'road', 'tree', 'pine', 'bush', 'yard', ...ANIMAL_TYPES];
+const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair', 'house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church', 'shell', 'roads', 'water', 'townhouse', 'block', 'tower', 'car', 'hatch', 'suv', 'van', 'bus', 'eiffel', 'ferris', 'boat', 'colosseum', 'road', 'tree', 'pine', 'bush', 'yard', 'terrain', 'river', 'bridge', 'hill', 'hayrack', ...ANIMAL_TYPES];
 const isTriple = (v: unknown): v is Triple => Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && isFinite(n));
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -35,6 +40,10 @@ function parseObjects(raw: unknown): ObjectParams[] {
     return {
       pose,
       ...(opening ? { opening: { w: opening.w, h: opening.h, x: opening.x, y: opening.y } } : {}),
+      ...(Array.isArray(o.heights) && typeof o.hn === 'number' && o.heights.length === (o.hn + 1) ** 2 && o.heights.every((n) => typeof n === 'number' && isFinite(n)) ? { heights: o.heights as number[], hn: o.hn } : {}),
+      ...(Array.isArray(o.paths) ? { paths: (o.paths as unknown[]).filter((q): q is { w: number; p: number[] } => isObj(q) && typeof q.w === 'number' && Array.isArray(q.p) && q.p.every((n) => typeof n === 'number' && isFinite(n))) } : {}),
+      ...(typeof o.seed === 'number' && isFinite(o.seed) ? { seed: o.seed } : {}),
+      ...(typeof o.flat === 'number' && isFinite(o.flat) ? { flat: Math.min(0.9, Math.max(0, o.flat)) } : {}),
       id: typeof o.id === 'string' && o.id ? o.id : `o${i}`,
       type: o.type as ObjectType,
       // preimenovanje: moška figura se je prej imenovala »Figura«
@@ -65,7 +74,7 @@ export function applyScene(data: unknown, state: AppState, store: ObjectStore): 
   mergeKnown(fresh.light, data.light);
   mergeKnown(fresh.guides as GuideSettings, data.guides);
   mergeKnown(fresh.view, data.view);
-  if (!['1pt', '2pt', '3pt'].includes(fresh.camera.mode as PerspectiveMode)) fresh.camera.mode = '2pt';
+  if (!['1pt', '2pt', '3pt'].includes(fresh.camera.mode as PerspectiveMode)) fresh.camera.mode = '3pt';
   if (!(fresh.camera.aspect in ASPECTS)) fresh.camera.aspect = '3:2';
   Object.assign(state.camera, constrain(fresh.camera));
   Object.assign(state.light, fresh.light);
@@ -167,7 +176,7 @@ export function fileSafeName(name: string = currentSceneName()): string {
 export function saveLocal(state: AppState, store: ObjectStore): boolean {
   const idx = getIndex();
   try {
-    localStorage.setItem(sceneKey(idx.current), JSON.stringify(serialize(state, store)));
+    localStorage.setItem(sceneKey(idx.current), pack(JSON.stringify(serialize(state, store))));
     const m = idx.items.find((x) => x.id === idx.current);
     if (m) m.updated = Date.now();
     writeIndex();
@@ -182,9 +191,10 @@ export function loadLocal(state: AppState, store: ObjectStore): boolean {
   try {
     const raw = localStorage.getItem(sceneKey(getIndex().current));
     if (!raw) return false;
-    applyScene(JSON.parse(raw), state, store);
+    applyScene(JSON.parse(unpack(raw)), state, store);
     return true;
-  } catch {
+  } catch (err) {
+    console.warn('Scene ni mogoče naložiti:', err);
     return false;
   }
 }
@@ -195,7 +205,7 @@ export function createScene(name: string, data: SceneFile | null): string {
   getIndex().items.push({ id, name, updated: Date.now() });
   if (data) {
     try {
-      localStorage.setItem(sceneKey(id), JSON.stringify(data));
+      localStorage.setItem(sceneKey(id), pack(JSON.stringify(data)));
     } catch {
       /* brez shranjevanja */
     }

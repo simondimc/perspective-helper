@@ -2,16 +2,28 @@ import './ui.css';
 import { ASPECTS } from './camera';
 import { Rig, axesOf, limitsOf } from './figure';
 import { isPosable, rigOf } from './rigs';
-import { applyScene, blankSceneFile, createScene, currentSceneId, deleteScene, downloadBlob, downloadScene, fileSafeName, getIndex, loadLocal, pickSceneFile, renameScene, resetScene, sceneNameOf, saveLocal, serialize, setCurrentScene } from './io';
+import { SceneFile, applyScene, blankSceneFile, createScene, currentSceneId, deleteScene, downloadBlob, downloadScene, fileSafeName, getIndex, loadLocal, pickSceneFile, renameScene, resetScene, sceneNameOf, saveLocal, serialize, setCurrentScene } from './io';
 import { ANIMAL_TYPES } from './animalRigs';
 import { ObjectStyle, ObjectType, TYPE_LABELS } from './objects';
-import { villageScene } from './example-village';
 import { DEFAULT_OPENING, clampOpening, isWallType } from './wall';
 import { PROJECTION_LABELS } from './projection';
 import { SceneView, TransformMode, ViewMode } from './scene';
 import { AppState } from './state';
 
 const AUTOSAVE_DELAY = 600;
+
+/** Primeri mest iz podatkov OpenStreetMap (1 × 1 km); datoteke se naložijo šele ob izbiri. */
+const OSM_SCENES = {
+  capital: { name: 'Ljubljana – center', label: 'Ljubljana: center (Prešernov trg, Tromostovje, Grajski hrib)', load: () => import('./data/ljubljana.json') },
+  paris: { name: 'Pariz – Eifflov stolp', label: 'Pariz: Eifflov stolp in Seina', load: () => import('./data/paris.json') },
+  london: { name: 'London – Westminster', label: 'London: Westminster (Big Ben, Temza)', load: () => import('./data/london.json') },
+  tokyo: { name: 'Tokio – Shibuya', label: 'Tokio: Shibuya (križišče Shibuya)', load: () => import('./data/tokyo.json') },
+  newyork: { name: 'New York – Midtown', label: 'New York: Midtown (Bryant Park, Empire State Building)', load: () => import('./data/newyork.json') },
+  rome: { name: 'Rim – Koloseum', label: 'Rim: Koloseum in Forum', load: () => import('./data/rome.json') },
+  venice: { name: 'Benetke – Rialto', label: 'Benetke: Rialto in Veliki kanal', load: () => import('./data/venice.json') },
+  fidi: { name: 'New York – Lower Manhattan', label: 'New York: Lower Manhattan (Wall Street, One WTC)', load: () => import('./data/fidi.json') },
+};
+type OsmScene = keyof typeof OSM_SCENES;
 
 const ICONS: Record<string, string> = {
   box: '<path d="M12 3 4 7v10l8 4 8-4V7zM4 7l8 4 8-4M12 11v10"/>',
@@ -28,10 +40,21 @@ const ICONS: Record<string, string> = {
   cottage: '<path d="M2 13 12 6l10 7M5 12v8h14v-8M9 20v-4h3v4M15 14h2v2h-2z"/>',
   barn: '<path d="M3 11 7 5h10l4 6v9H3zM9 20v-7h6v7M9 13l6 7M15 13l-6 7"/>',
   church: '<path d="M12 2v4M10 4h4M8 10l4-4 4 4v11H8zM3 21v-7l5-3M21 21v-7l-5-3M10.5 21v-4h3v4"/>',
+  townhouse: '<path d="M6 21V6h12v15M3 21h18M9 9h2M13 9h2M9 13h2M13 13h2M10 21v-4h4v4"/>',
+  block: '<path d="M5 21V3h14v18M3 21h18M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2"/>',
+  ferris: '<circle cx="12" cy="10" r="7"/><circle cx="12" cy="10" r="1"/><path d="M12 3v14M5 10h14M7 5l10 10M17 5 7 15M8 21l4-11 4 11"/>',
+  boat: '<path d="M3 15h18l-3 5H6zM12 15V4l6 8h-6M10 8l-4 5h4"/>',
+  car: '<path d="M3 15v-3l2-4h9l3 4h4v3zM7 15a2 2 0 1 0 0 .1M16 15a2 2 0 1 0 0 .1M6.5 8l-1 4h12"/>',
+  tower: '<path d="M10 21V8l2-5 2 5v13M6 21v-9h4M14 21v-9h4M3 21h18"/>',
   road: '<path d="M8 3 4 21M16 3l4 18M12 4v3M12 10v3M12 16v3"/>',
   tree: '<circle cx="12" cy="9" r="6"/><path d="M12 15v6M9 21h6"/>',
   pine: '<path d="M12 3 7 10h3l-4 6h12l-4-6h3zM12 16v5"/>',
   bush: '<circle cx="8" cy="15" r="4"/><circle cx="16" cy="15" r="4"/><circle cx="12" cy="11" r="4"/><path d="M4 19h16"/>',
+  terrain: '<path d="M2 18l5-7 3 4 4-8 4 6 4-3v8zM2 18h20"/>',
+  river: '<path d="M3 8c3-2 6 2 9 0s6-2 9 0M3 13c3-2 6 2 9 0s6-2 9 0M3 18c3-2 6 2 9 0s6-2 9 0"/>',
+  bridge: '<path d="M2 10h20M4 10v4a4 4 0 0 0 8 0v-4M12 10v4a4 4 0 0 0 8 0v-4M2 18h20"/>',
+  hill: '<path d="M2 20c3-10 7-14 10-14s7 4 10 14zM15 8l3-2"/>',
+  hayrack: '<path d="M3 10l9-5 9 5M5 10v10M12 10v10M19 10v10M8 12v8M16 12v8"/>',
   yard: '<path d="M3 20V8h18v12M3 20h18M7 8v12M12 8v12M17 8v12M3 12h18"/>',
   wall: '<path d="M3 5h18v14H3zM3 10h18M3 15h18M9 5v5M15 10v5M9 15v4"/>',
   wallDoor: '<path d="M4 4h16v16H4zM9 20V10h6v10"/>',
@@ -45,6 +68,8 @@ const ICONS: Record<string, string> = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   lift: '<path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>',
+  hand: '<path d="M8 12V6a1.5 1.5 0 0 1 3 0v5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2 6-5.5 6S6 18 5 15l-1.2-3a1.4 1.4 0 0 1 2.4-1.2L8 13"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
 };
 const icon = (name: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
@@ -68,6 +93,7 @@ export class UI {
   private addbar = el('div', 'addbar');
   private selbar = el('div');
   private selName = el('span', 'name');
+  private warnedStorage = false;
   private stack = el('div', 'bottomstack');
 
   constructor(private view: SceneView, private state: AppState) {
@@ -197,17 +223,26 @@ export class UI {
     const modes: Array<[ViewMode, string]> = [['split', 'Scena + kader'], ['editor', 'Scena'], ['frame', 'Kader']];
     bar.append(this.seg(modes, () => view.mode, (m) => view.setMode(m)));
     const tools: Array<[TransformMode, string, string]> = [['translate', 'Premik (W)', 'translate'], ['rotate', 'Rotacija (E)', 'rotate'], ['scale', 'Velikost (R)', 'scale']];
+    const navBtn = el('button', '', icon('hand'));
+    navBtn.title = 'Samo pogled (H): klik in vlečenje v sceni ne izbereta in ne premakneta predmetov';
+    navBtn.onclick = () => {
+      view.setNavOnly(!view.navOnly);
+      this.sync();
+    };
+    this.tools.append(navBtn);
+    this.syncs.push(() => navBtn.classList.toggle('on', view.navOnly));
     const btns = tools.map(([m, title, ic]) => {
       const b = el('button', '', icon(ic));
       b.title = title;
       b.onclick = () => {
+        view.setNavOnly(false);
         view.setTransformMode(m);
         this.sync();
       };
       this.tools.append(b);
       return [m, b] as const;
     });
-    this.syncs.push(() => btns.forEach(([m, b]) => b.classList.toggle('on', view.transformMode === m && !view.cameraSelected && !view.selectedJoint)));
+    this.syncs.push(() => btns.forEach(([m, b]) => b.classList.toggle('on', view.transformMode === m && !view.navOnly && !view.cameraSelected && !view.selectedJoint)));
     bar.append(this.tools);
     bar.append(this.sceneSwitcher());
     this.root.append(bar);
@@ -224,15 +259,25 @@ export class UI {
     this.afterLoad();
   }
 
-  private newScene(kind: 'blank' | 'default' | 'copy' | 'village'): void {
+  private async newScene(kind: 'blank' | 'default' | 'copy' | OsmScene): Promise<void> {
     const idx = getIndex();
-    const base = kind === 'village' ? 'Podeželska vas' : kind === 'copy' ? `${idx.items.find((m) => m.id === idx.current)?.name ?? 'Scena'} (kopija)` : `Scena ${idx.items.length + 1}`;
+    const osm = kind in OSM_SCENES ? OSM_SCENES[kind as OsmScene] : null;
+    const base = osm ? osm.name : kind === 'copy' ? `${idx.items.find((m) => m.id === idx.current)?.name ?? 'Scena'} (kopija)` : `Scena ${idx.items.length + 1}`;
     const name = prompt('Ime nove scene', base);
     if (name === null) return;
     clearTimeout(this.saveTimer);
     saveLocal(this.state, this.view.store);
-    const data = kind === 'village' ? villageScene() : kind === 'blank' ? blankSceneFile() : kind === 'copy' ? serialize(this.state, this.view.store) : null;
-    this.switchScene(createScene(name.trim() || base, data));
+    let data: SceneFile | null = null;
+    if (kind === 'blank') data = blankSceneFile();
+    else if (kind === 'copy') data = serialize(this.state, this.view.store);
+    else if (osm) data = (await osm.load()).default as unknown as SceneFile;
+    const newId = createScene(name.trim() || base, data);
+    this.switchScene(newId);
+    // če shranjevanja ni bilo (pomnilnik brskalnika poln), sceno uporabimo neposredno iz pomnilnika
+    if (data && data.objects.length && this.view.store.list()[0]?.id !== data.objects[0].id) {
+      applyScene(data, this.state, this.view.store);
+      this.afterLoad();
+    }
   }
 
   /** Izbirnik scene v zgornji vrstici: preklop in hitro dodajanje. */
@@ -304,8 +349,26 @@ export class UI {
     mk('+ Prazna', () => this.newScene('blank'));
     mk('+ Privzeta', () => this.newScene('default'));
     mk('Podvoji', () => this.newScene('copy'));
-    mk('+ Primer: vas', () => this.newScene('village'));
+    // primeri: nova scena iz izbranega primera
+    const tpl = el('select', 'scenesel tplsel');
+    tpl.title = 'Nova scena iz primera';
+    tpl.append(new Option('Primeri scen …', ''));
+    for (const [v, o] of Object.entries(OSM_SCENES)) tpl.append(new Option(o.label, v));
+    tpl.onchange = () => {
+      const v = tpl.value as OsmScene | '';
+      tpl.value = '';
+      if (v) this.newScene(v);
+    };
+    btns.append(tpl);
     return this.card('Scene', false, list, btns);
+  }
+
+  /** Postavi pojavno okno ob desni rob orodne vrstice, v višino gumba (vrstica se lahko pomika, zato fiksen položaj). */
+  private placePopover(pop: HTMLElement, anchor: HTMLElement): void {
+    const bar = this.addbar.getBoundingClientRect();
+    const a = anchor.getBoundingClientRect();
+    pop.style.left = `${bar.right + 8}px`;
+    pop.style.top = `${Math.max(8, Math.min(a.top, window.innerHeight - 120))}px`;
   }
 
   private buildAddbar(): void {
@@ -317,6 +380,15 @@ export class UI {
       b.onclick = () => add(t);
       this.addbar.append(b);
     };
+    // kamera je v sceni samo ena; izbere se s tem gumbom (oranžen), kot tudi s klikom nanjo v sceni
+    const camBtn = el('button', 'cambtn', icon('camera'));
+    camBtn.title = 'Kamera: izberi in pokaži kamero v sceni';
+    camBtn.onclick = () => {
+      view.selectCamera();
+      view.focusCamera();
+    };
+    this.syncs.push(() => camBtn.classList.toggle('on', view.cameraSelected));
+    this.addbar.append(camBtn, el('div', 'sep'));
     const first: Array<[ObjectType, string]> = [['box', 'Škatla'], ['sphere', 'Krogla'], ['cylinder', 'Valj'], ['cone', 'Stožec'], ['figure', 'Moški'], ['woman', 'Ženska']];
     // figure: pred dodajanjem izberete višino
     const sizePop = el('div', 'popover sizepop');
@@ -397,7 +469,7 @@ export class UI {
           addSized.textContent = `Dodaj: ${n}`;
           const open = sizePop.style.display === 'none' || sizeType !== t;
           sizePop.style.display = open ? 'grid' : 'none';
-          sizePop.style.top = `${b.offsetTop}px`;
+          this.placePopover(sizePop, b);
           heightInput.value = String(t === 'woman' && !localStorage.getItem(KEY_H) ? 170 : lastH);
           weightInput.value = String(t === 'woman' && !localStorage.getItem(KEY_W) ? 60 : lastW);
         };
@@ -424,7 +496,7 @@ export class UI {
       gb.onclick = (e) => {
         e.stopPropagation();
         pop.hidden = !pop.hidden;
-        pop.style.top = `${gb.offsetTop}px`;
+        this.placePopover(pop, gb);
       };
       window.addEventListener('pointerdown', (e) => {
         if (!pop.contains(e.target as Node)) pop.hidden = true;
@@ -432,10 +504,12 @@ export class UI {
       this.addbar.append(gb, pop);
     };
     group('dog', 'Živali', ['dog', 'horse', 'elephant', ...ANIMAL_TYPES]);
-    const rest: Array<[ObjectType, string]> = [['wall', 'Stena'], ['wallDoor', 'Stena z vrati'], ['wallWindow', 'Stena z oknom'], ['table', 'Miza'], ['chair', 'Stol']];
-    rest.forEach(([t, n]) => btn(t, n));
-    group('house', 'Hiše', ['house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church']);
-    group('tree', 'Okolje', ['road', 'yard', 'tree', 'pine', 'bush']);
+    group('wall', 'Stene in pohištvo', ['wall', 'wallDoor', 'wallWindow', 'table', 'chair']);
+    group('house', 'Stavbe', ['house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'hayrack', 'shell', 'townhouse', 'block', 'tower', 'church']);
+    group('ferris', 'Znamenitosti', ['eiffel', 'colosseum', 'ferris']);
+    group('car', 'Vozila', ['car', 'hatch', 'suv', 'van', 'bus', 'boat']);
+    group('tree', 'Narava', ['tree', 'pine', 'bush', 'hill', 'terrain', 'river']);
+    group('road', 'Ceste in dvorišča', ['road', 'bridge', 'yard']);
     this.root.append(this.addbar);
   }
 
@@ -624,6 +698,10 @@ export class UI {
     const fileCard = this.card('Datoteka', false, files, reset);
 
     side.append(this.sceneList(), this.objectList(), this.poseCard(), camCard, lightCard, guidesCard, viewCard, fileCard);
+    // navedba virov za primere mest (obvezna po licenci ODbL)
+    const credits = el('div', 'credits');
+    credits.innerHTML = 'Primeri mest (Ljubljana, Pariz, London, Tokio, New York): stavbe, ulice in vode © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">prispevki OpenStreetMap</a> (licenca ODbL); višine terena: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">AWS Terrain Tiles</a>.';
+    side.append(credits);
     this.root.append(side, toggle);
   }
 
@@ -639,10 +717,14 @@ export class UI {
       if (next === sig) return;
       sig = next;
       list.replaceChildren();
-      const row = (label: string, sub: string, active: boolean, onClick: () => void) => {
+      const row = (label: string, sub: string, active: boolean, onClick: () => void, onRename?: () => void) => {
         const b = el('button', `objrow${active ? ' on' : ''}`);
         b.append(el('span', 'nm', label), el('span', 'sub', sub));
         b.onclick = onClick;
+        if (onRename) {
+          b.title = 'Dvojni klik za preimenovanje';
+          b.ondblclick = onRename;
+        }
         list.append(b);
       };
       row('Kamera', 'kompozicijska', sel === 'camera', () => {
@@ -654,7 +736,7 @@ export class UI {
           view.store.select(o.id);
           const m = view.store.mesh(o.id);
           if (m) view.focusOn(m);
-        });
+        }, () => this.renameObject(o.id));
       }
       if (!items.length) list.append(el('div', 'hint', 'V sceni ni predmetov.'));
     };
@@ -865,11 +947,27 @@ export class UI {
 
   // ---- vrstica izbranega objekta ----
 
+  /** Vpraša za novo ime predmeta in ga preimenuje. */
+  private renameObject(id: string): void {
+    const p = this.view.store.get(id);
+    if (!p) return;
+    const n = prompt('Novo ime predmeta', p.name);
+    if (n === null || !n.trim()) return;
+    this.view.store.rename(id, n);
+    this.syncSelection();
+    this.sync();
+  }
+
   private buildSelbar(): void {
     const { view } = this;
     const bar = this.selbar;
     bar.id = 'selbar';
     bar.className = 'floatbar';
+    this.selName.title = 'Klikni za preimenovanje';
+    this.selName.onclick = () => {
+      const id = view.store.selectedId;
+      if (id && !view.cameraSelected) this.renameObject(id);
+    };
     bar.append(this.selName);
     type Key = 'px' | 'py' | 'pz' | 'ry' | 'sx' | 'sy' | 'sz';
     const read = (k: Key): number => {
@@ -970,6 +1068,7 @@ export class UI {
     this.view.refreshCamera();
     this.view.refreshLight();
     this.view.applySnap();
+    this.view.frameAll();
     this.view.store.setStyle(this.state.view.objectStyle);
     this.sync();
     this.syncSelection();
@@ -978,7 +1077,12 @@ export class UI {
 
   private scheduleSave(): void {
     clearTimeout(this.saveTimer);
-    this.saveTimer = window.setTimeout(() => saveLocal(this.state, this.view.store), AUTOSAVE_DELAY);
+    this.saveTimer = window.setTimeout(() => {
+      if (!saveLocal(this.state, this.view.store) && !this.warnedStorage) {
+        this.warnedStorage = true;
+        alert('Brskalnik nima več prostora za shranjevanje scen, zato se te scene ne bo dalo obnoviti ob osvežitvi. Sceno shrani v datoteko (Datoteka → Shrani sceno) ali izbriši kakšno staro sceno (kartica Scene).');
+      }
+    }, AUTOSAVE_DELAY);
   }
 
   // ---- bližnjice ----
@@ -1000,9 +1104,11 @@ export class UI {
         e.preventDefault();
         store.duplicate(store.selectedId);
       } else if (!e.ctrlKey && !e.metaKey && this.view.mode !== 'frame') {
-        if (key === 'w') this.view.setTransformMode('translate');
-        else if (key === 'e') this.view.setTransformMode('rotate');
-        else if (key === 'r') this.view.setTransformMode('scale');
+        if (key === 'h') this.view.setNavOnly(!this.view.navOnly);
+        else if (key === 'w' || key === 'e' || key === 'r') {
+          this.view.setNavOnly(false);
+          this.view.setTransformMode(key === 'w' ? 'translate' : key === 'e' ? 'rotate' : 'scale');
+        }
         this.sync();
       }
     });

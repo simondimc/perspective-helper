@@ -5,8 +5,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 // (W × H × D); pročelje z vrati je obrnjeno proti +Z, slemena dvokapnih streh so vzdolž X.
 
 type Size = [number, number, number];
-export type HouseKind = 'house' | 'houseHip' | 'houseTwo' | 'cottage' | 'barn' | 'church';
-export const HOUSE_KINDS: HouseKind[] = ['house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church'];
+export type HouseKind = 'house' | 'houseHip' | 'houseTwo' | 'cottage' | 'barn' | 'church' | 'shell';
+export const HOUSE_KINDS: HouseKind[] = ['house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church', 'shell'];
 
 const box = (w: number, h: number, d: number, x: number, y: number, z: number): BufferGeometry => new BoxGeometry(w, h, d).translate(x, y, z);
 
@@ -27,8 +27,16 @@ function pyramid(W: number, D: number, eave: number, ridge: number, x = 0, z = 0
 
 const finish = (parts: BufferGeometry[], H: number): BufferGeometry => mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!.translate(0, -H / 2, 0);
 
+/** Preprosta stavba: telo in dvokapna streha brez podrobnosti (za množične scene iz podatkov). Greben je vzdolž X. */
+function shellGeometry([W, H, D]: Size): BufferGeometry {
+  const rise = Math.min(D * 0.3, H * 0.4, 4);
+  const wallH = H - rise;
+  return finish([box(W, wallH, D, 0, wallH / 2, 0), gable(W, D, wallH, H)], H);
+}
+
 export function houseGeometry(kind: HouseKind, size: Size): BufferGeometry {
   if (kind === 'church') return churchGeometry(size);
+  if (kind === 'shell') return shellGeometry(size);
   const [W, H, D] = size;
   const over = Math.min(0.3, W * 0.04, D * 0.04); // napušč strehe
   const bw = W - 2 * over;

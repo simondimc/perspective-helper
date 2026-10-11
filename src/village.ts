@@ -1,11 +1,11 @@
-import { BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, SphereGeometry } from 'three';
+import { BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, ExtrudeGeometry, LatheGeometry, Shape, SphereGeometry, Vector2 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // Okolje za vas: cesta, drevesa, grmi, dvorišče. Središče geometrije je v sredini omejevalnega okvirja (W × H × D).
 
 type Size = [number, number, number];
-export type NatureKind = 'road' | 'tree' | 'pine' | 'bush' | 'yard';
-export const NATURE_KINDS: NatureKind[] = ['road', 'tree', 'pine', 'bush', 'yard'];
+export type NatureKind = 'terrain' | 'road' | 'tree' | 'pine' | 'bush' | 'yard' | 'river' | 'bridge' | 'hill' | 'hayrack';
+export const NATURE_KINDS: NatureKind[] = ['terrain', 'road', 'tree', 'pine', 'bush', 'yard', 'river', 'bridge', 'hill', 'hayrack'];
 
 const box = (w: number, h: number, d: number, x: number, y: number, z: number): BufferGeometry => new BoxGeometry(w, h, d).translate(x, y, z);
 const ell = (rx: number, ry: number, rz: number, x: number, y: number, z: number): BufferGeometry => new SphereGeometry(1, 24, 16).scale(rx, ry, rz).translate(x, y, z);
@@ -77,8 +77,63 @@ function yard([W, H, D]: Size): BufferGeometry {
   return finish(parts, H);
 }
 
+/** Reka (dolžina vzdolž Z): dno in dva nabrežna zidova višine H; pri nizki H (jezero) samo plošča. */
+function river([W, H, D]: Size): BufferGeometry {
+  const bed = Math.min(0.05, H * 0.2);
+  const parts: BufferGeometry[] = [box(W, bed, D, 0, bed / 2, 0)];
+  if (H > 0.3) {
+    const wall = Math.min(0.8, W * 0.06);
+    for (const sx of [-1, 1]) parts.push(box(wall, H, D, sx * (W / 2 - wall / 2), H / 2, 0));
+  }
+  return finish(parts, H);
+}
+
+/** Most (dolžina vzdolž X, širina vozišča vzdolž Z): krov, ograja in oporniki. Vrh krova je 1 m pod višino H. */
+function bridge([W, H, D]: Size): BufferGeometry {
+  const rail = Math.min(1, H * 0.4);
+  const deckT = Math.min(0.8, H * 0.3);
+  const deckTop = H - rail;
+  const parts: BufferGeometry[] = [box(W, deckT, D, 0, deckTop - deckT / 2, 0)];
+  for (const sz of [-1, 1]) parts.push(box(W, rail, Math.min(0.4, D * 0.1), 0, H - rail / 2, sz * (D / 2 - Math.min(0.4, D * 0.1) / 2)));
+  const piers = Math.max(2, Math.floor(W / 14));
+  for (let i = 0; i <= piers; i++) if (i > 0 && i < piers) parts.push(box(Math.min(1.5, D * 0.2), deckTop - deckT, D * 0.8, -W / 2 + (W * i) / piers, (deckTop - deckT) / 2, 0));
+  return finish(parts, H);
+}
+
+/** Hrib: zaobljena kupola (parabolični profil). */
+function hill([W, H, D]: Size): BufferGeometry {
+  const prof: Vector2[] = [new Vector2(0.5, 0)];
+  for (let i = 0; i <= 20; i++) {
+    const rr = 1 - i / 20; // normiran polmer 1 → 0
+    prof.push(new Vector2(rr * 0.5, H * (1 - rr * rr)));
+  }
+  return new LatheGeometry(prof, 32).scale(W, 1, D);
+}
+
+/** Kozolec: lesen okvir z letvami in nizko dvokapno streho (dolžina vzdolž X). */
+function hayrack([W, H, D]: Size): BufferGeometry {
+  const post = Math.min(0.2, D * 0.08);
+  const roofH = H * 0.28;
+  const wallH = H - roofH;
+  const parts: BufferGeometry[] = [];
+  const posts = Math.max(2, Math.round(W / 2.5));
+  for (let i = 0; i <= posts; i++) for (const sz of [-1, 1]) parts.push(box(post, wallH, post, -W / 2 + (W * i) / posts, wallH / 2, sz * (D / 2 - post / 2)));
+  for (const f of [0.15, 0.5, 0.85]) for (const sz of [-1, 1]) parts.push(box(W, post * 0.5, post * 0.5, 0, wallH * f, sz * (D / 2 - post / 2)));
+  const slats = Math.round(W / 0.35);
+  for (let i = 0; i < slats; i++) for (const sz of [-1, 1]) parts.push(box(post * 0.35, wallH * 0.75, post * 0.35, -W / 2 + (W * (i + 0.5)) / slats, wallH * 0.52, sz * (D / 2 - post / 2)));
+  const shape = new Shape();
+  shape.moveTo(-D / 2 - 0.2, wallH);
+  shape.lineTo(D / 2 + 0.2, wallH);
+  shape.lineTo(0, H);
+  shape.closePath();
+  parts.push(new ExtrudeGeometry(shape, { depth: W, bevelEnabled: false }).rotateY(-Math.PI / 2).translate(W / 2, 0, 0));
+  return finish(parts, H);
+}
+
 export function natureGeometry(kind: NatureKind, size: Size): BufferGeometry {
   switch (kind) {
+    case 'terrain':
+      return new BoxGeometry(1, 1, 1); // pokrajina se zgradi v objects.ts (terrain.ts)
     case 'road':
       return road(size);
     case 'tree':
@@ -89,5 +144,13 @@ export function natureGeometry(kind: NatureKind, size: Size): BufferGeometry {
       return bush(size);
     case 'yard':
       return yard(size);
+    case 'river':
+      return river(size);
+    case 'bridge':
+      return bridge(size);
+    case 'hill':
+      return hill(size);
+    case 'hayrack':
+      return hayrack(size);
   }
 }
