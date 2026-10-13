@@ -66,6 +66,16 @@ function legs(d: Dims, thick: number): Part[] {
   return p;
 }
 
+/** Krilo/poli, ki sledijo nogam: stegno je pripeto na kolk, golen na koleno, zato se pri sedeči pozi obleka prilagodi. */
+function legSkirt(d: Dims, thigh: [number, number], thighY: [number, number], shin?: { r: [number, number]; y: [number, number] }): Part[] {
+  const p: Part[] = [];
+  for (const [s, hp, kn] of [[1, 'hipL', 'kneeL'], [-1, 'hipR', 'kneeR']] as const) {
+    p.push({ joint: hp, make: cyl(thigh[0], thigh[1], thighY[0] - thighY[1], s * d.hip, (thighY[0] + thighY[1]) / 2, 0, 0.9) });
+    if (shin) p.push({ joint: kn, make: cyl(shin.r[0], shin.r[1], shin.y[0] - shin.y[1], s * d.hip, (shin.y[0] + shin.y[1]) / 2, 0, 0.9) });
+  }
+  return p;
+}
+
 function outfitParts(id: string, outfit: string): Part[] {
   const d = DIMS[id];
   if (!d || outfit === 'none') return [];
@@ -74,8 +84,10 @@ function outfitParts(id: string, outfit: string): Part[] {
     case 'robe':
     case 'robeHood': {
       const p: Part[] = [
-        { joint: 'torso', make: cyl(d.sh * 0.95, woman ? 0.31 : 0.35, 1.38, 0, 0.72, 0, 0.72) },
+        { joint: 'torso', make: cyl(d.sh * 0.95, woman ? 0.2 : 0.23, 0.62, 0, 1.11, 0, 0.72) },
         { joint: 'torso', make: cyl(0.075, 0.085, 0.07, 0, 1.47, 0) },
+        // spodnji del halje sledi nogam (stegno na kolku, golen na kolenu)
+        ...legSkirt(d, woman ? [0.125, 0.14] : [0.135, 0.15], [0.8, 0.4], { r: woman ? [0.15, 0.19] : [0.16, 0.2], y: [0.4, 0.03] }),
       ];
       for (const [s, sh, el] of [[1, 'shoulderL', 'elbowL'], [-1, 'shoulderR', 'elbowR']] as const) {
         p.push({ joint: sh, make: cyl(0.075, 0.095, 0.32, s * d.sh, 1.26, 0) });
@@ -97,14 +109,16 @@ function outfitParts(id: string, outfit: string): Part[] {
     }
     case 'dress': {
       return [
-        { joint: 'torso', make: cyl(woman ? 0.14 : 0.19, woman ? 0.37 : 0.4, 0.93, 0, 0.5, 0, 0.82) },
+        { joint: 'torso', make: cyl(woman ? 0.14 : 0.19, woman ? 0.17 : 0.22, 0.22, 0, 0.9, 0, 0.82) },
         { joint: 'torso', make: cyl(woman ? 0.15 : 0.2, woman ? 0.15 : 0.2, 0.05, 0, 0.97, 0, 0.8) },
+        ...legSkirt(d, woman ? [0.165, 0.19] : [0.18, 0.2], [0.8, 0.4], { r: woman ? [0.2, 0.26] : [0.21, 0.27], y: [0.4, 0.05] }),
       ];
     }
     case 'jacket': {
       return [
         { joint: 'torso', make: box(0.38, 0.6, 0.23, 0, 1.17, 0) },
-        { joint: 'torso', make: cyl(0.22, 0.27, 0.44, 0, 0.76, 0, 0.78) },
+        { joint: 'torso', make: cyl(0.22, 0.24, 0.24, 0, 0.9, 0, 0.78) },
+        ...legSkirt(d, [0.105, 0.1], [0.8, 0.58]),
         { joint: 'torso', make: cyl(0.075, 0.09, 0.06, 0, 1.5, 0) },
         ...limbs(d, 0.014),
       ];
@@ -112,8 +126,9 @@ function outfitParts(id: string, outfit: string): Part[] {
     case 'coat': {
       return [
         { joint: 'torso', make: box(0.38, 0.6, 0.23, 0, 1.17, 0) },
-        { joint: 'torso', make: cyl(0.23, 0.26, 0.9, 0, 0.88, 0, 0.78) },
+        { joint: 'torso', make: cyl(0.23, 0.245, 0.24, 0, 0.9, 0, 0.78) },
         { joint: 'torso', make: cyl(0.22, 0.22, 0.05, 0, 0.99, 0, 0.78) },
+        ...legSkirt(d, [0.12, 0.115], [0.8, 0.43]),
         { joint: 'torso', make: cyl(0.075, 0.09, 0.06, 0, 1.5, 0) },
         ...limbs(d, 0.016),
       ];
