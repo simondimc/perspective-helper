@@ -33,6 +33,8 @@ export interface Part {
 
 export interface Rig {
   id: string;
+  /** Pri različicah z obleko: osnovni skelet, po katerem se računa velikost (obleka ne vpliva na merilo figure). */
+  base?: Rig;
   joints: string[];
   def: Record<string, JointDef>;
   parts: () => Part[];
@@ -156,6 +158,7 @@ function rawGeometry(rig: Rig, pose: Pose, seg: number): BufferGeometry {
 
 const restCache = new Map<string, { center: Vector3; size: Vector3 }>();
 function rest(rig: Rig): { center: Vector3; size: Vector3 } {
+  rig = rig.base ?? rig;
   let r = restCache.get(rig.id);
   if (!r) {
     const g = rawGeometry(rig, {}, 24);

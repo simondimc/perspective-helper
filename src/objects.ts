@@ -27,6 +27,7 @@ import { DEFAULT_OPENING, Opening, isWallType, wallGeometry } from './wall';
 import { Angles, JointName, Pose, jointFrames, jointPosition, rigGeometry, toMeshSpace } from './figure';
 import { ANIMAL_LABELS, AnimalType, isAnimalType } from './animalRigs';
 import { isPosable, rigOf } from './rigs';
+import { rigFor } from './clothes';
 import { restSize } from './figure';
 
 export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair' | HouseKind | NatureKind | CityKind | 'roads' | 'water';
@@ -41,6 +42,11 @@ export interface TerrainParams {
   hn?: number;
   /** Omrežje cest (tip »roads«). */
   paths?: RoadPath[];
+  /** Figure: obleka in lasje (glej clothes.ts). */
+  outfit?: string;
+  hair?: string;
+  /** Figura iz paketa figur: »paket/figura« (glej packs.ts). */
+  figureRef?: string;
 }
 
 const isHouseOrNature = (t: ObjectType): boolean => (HOUSE_KINDS as string[]).includes(t) || (NATURE_KINDS as string[]).includes(t) || (CITY_KINDS as string[]).includes(t);
@@ -71,6 +77,11 @@ export interface ObjectParams {
   hn?: number;
   /** Omrežje cest (tip »roads«): poti z absolutnimi koordinatami. */
   paths?: RoadPath[];
+  /** Figure: obleka in lasje (glej clothes.ts). */
+  outfit?: string;
+  hair?: string;
+  /** Figura iz paketa figur: »paket/figura« (glej packs.ts). */
+  figureRef?: string;
 }
 
 export const TYPE_LABELS: Record<ObjectType, string> = {
@@ -202,7 +213,7 @@ export function buildEdges(type: ObjectType, size: Triple, pose?: Pose, opening?
   } else if (type === 'table' || type === 'chair' || isHouseOrNature(type)) {
     return new EdgesGeometry(buildGeometry(type, size), 1);
   } else if (type === 'box' || type === 'wall' || type === 'figure' || type === 'woman') {
-    return new EdgesGeometry(buildGeometry(type, size, pose), type === 'box' || type === 'wall' ? 1 : 35);
+    return new EdgesGeometry(buildGeometry(type, size, pose, undefined, terrain), type === 'box' || type === 'wall' ? 1 : 35);
   } else if (type === 'sphere') {
     const n = 48;
     for (let i = 0; i < n; i++) {
@@ -246,6 +257,7 @@ export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, openi
       return new ConeGeometry(0.5, 1, 64).scale(sx, sy, sz);
     case 'figure':
     case 'woman':
+      return rigGeometry(rigFor(type, terrain?.outfit, terrain?.hair)!, pose ?? {}, size);
     case 'dog':
     case 'horse':
     case 'elephant':

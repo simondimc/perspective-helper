@@ -39,6 +39,10 @@ npm run build    # preverjanje tipov + produkcijska gradnja
   vse tudi z vnosom vrednosti. Vsi drsniki imajo številčno polje.
 - **Ambientna okluzija** (GTAO) za senčenje brez luči; ne deluje pri ribjem očesu.
 - **Kader**: belo ozadje (papir), barva tal, debelina robov pri prikazu »samo robovi«.
+- **Obleka in lasje** figur (moški, ženska): v kartici Poza izbereš obleko (halja, plašč, obleka, jakna, oklep, stillsuit) in lase; deli sledijo pozi.
+- **Paketi figur**: datoteka JSON z imenovanimi figurami (velikost, obleka, lasje, poza). Paket samo uvoziš (*Datoteka → Uvozi paket figur*),
+  figure iz knjižnice nato dodajaš z ikono »Paketi figur« v levi vrstici. Scena si zapomni pakete, ki jih uporablja (`requires`);
+  ob odpiranju take scene morajo biti paketi že uvoženi, sicer uvoz javi, kateri manjkajo.
 - Bližnjice: `Tab` preklop pogleda, `Del` izbriši, `Ctrl/⌘+D` podvoji, `Ctrl/⌘+Z` razveljavi, `Ctrl/⌘+Y` ali `Ctrl/⌘+Shift+Z` ponovi, `H` samo pogled (brez izbire predmetov).
 - Predloge kamere:
   - **1-točkovna**: yaw se pripne na večkratnik 90°, pitch in roll sta 0 (dovoljen je lens shift).

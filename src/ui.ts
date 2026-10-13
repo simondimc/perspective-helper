@@ -2,10 +2,12 @@ import './ui.css';
 import { ASPECTS } from './camera';
 import { Rig, axesOf, limitsOf } from './figure';
 import { isPosable, rigOf } from './rigs';
-import { SceneFile, applyScene, blankSceneFile, createScene, currentSceneId, deleteScene, downloadBlob, downloadScene, fileSafeName, getIndex, loadLocal, pickSceneFile, renameScene, resetScene, sceneNameOf, saveLocal, serialize, setCurrentScene } from './io';
+import { SceneFile, applyScene, checkRequirements, blankSceneFile, createScene, currentSceneId, deleteScene, downloadBlob, downloadScene, fileSafeName, getIndex, loadLocal, pickSceneFile, renameScene, resetScene, sceneNameOf, saveLocal, serialize, setCurrentScene } from './io';
 import { ANIMAL_TYPES } from './animalRigs';
 import { ObjectStyle, ObjectType, TYPE_LABELS } from './objects';
+import { FigureDef, FigurePack, figureRef, listPacks, parsePack, removePack, savePack } from './packs';
 import { History } from './history';
+import { HAIRS, OUTFITS } from './clothes';
 import { DEFAULT_OPENING, clampOpening, isWallType } from './wall';
 import { PROJECTION_LABELS } from './projection';
 import { SceneView, TransformMode, ViewMode } from './scene';
@@ -13,17 +15,24 @@ import { AppState } from './state';
 
 const AUTOSAVE_DELAY = 600;
 
-/** Primeri mest iz podatkov OpenStreetMap (1 × 1 km); datoteke se naložijo šele ob izbiri. */
+/** Primeri scen: mesta iz podatkov OpenStreetMap (1 × 1 km); datoteke se naložijo šele ob izbiri. */
+interface ExampleScene {
+  name: string;
+  label: string;
+  group: string;
+  load: () => Promise<{ default: unknown }>;
+}
+
 const OSM_SCENES = {
-  capital: { name: 'Ljubljana – center', label: 'Ljubljana: center (Prešernov trg, Tromostovje, Grajski hrib)', load: () => import('./data/ljubljana.json') },
-  paris: { name: 'Pariz – Eifflov stolp', label: 'Pariz: Eifflov stolp in Seina', load: () => import('./data/paris.json') },
-  london: { name: 'London – Westminster', label: 'London: Westminster (Big Ben, Temza)', load: () => import('./data/london.json') },
-  tokyo: { name: 'Tokio – Shibuya', label: 'Tokio: Shibuya (križišče Shibuya)', load: () => import('./data/tokyo.json') },
-  newyork: { name: 'New York – Midtown', label: 'New York: Midtown (Bryant Park, Empire State Building)', load: () => import('./data/newyork.json') },
-  rome: { name: 'Rim – Koloseum', label: 'Rim: Koloseum in Forum', load: () => import('./data/rome.json') },
-  venice: { name: 'Benetke – Rialto', label: 'Benetke: Rialto in Veliki kanal', load: () => import('./data/venice.json') },
-  fidi: { name: 'New York – Lower Manhattan', label: 'New York: Lower Manhattan (Wall Street, One WTC)', load: () => import('./data/fidi.json') },
-};
+  capital: { name: 'Ljubljana – center', label: 'Ljubljana: center (Prešernov trg, Tromostovje, Grajski hrib)', group: 'Mesta', load: () => import('./data/ljubljana.json') },
+  paris: { name: 'Pariz – Eifflov stolp', label: 'Pariz: Eifflov stolp in Seina', group: 'Mesta', load: () => import('./data/paris.json') },
+  london: { name: 'London – Westminster', label: 'London: Westminster (Big Ben, Temza)', group: 'Mesta', load: () => import('./data/london.json') },
+  tokyo: { name: 'Tokio – Shibuya', label: 'Tokio: Shibuya (križišče Shibuya)', group: 'Mesta', load: () => import('./data/tokyo.json') },
+  newyork: { name: 'New York – Midtown', label: 'New York: Midtown (Bryant Park, Empire State Building)', group: 'Mesta', load: () => import('./data/newyork.json') },
+  rome: { name: 'Rim – Koloseum', label: 'Rim: Koloseum in Forum', group: 'Mesta', load: () => import('./data/rome.json') },
+  venice: { name: 'Benetke – Rialto', label: 'Benetke: Rialto in Veliki kanal', group: 'Mesta', load: () => import('./data/venice.json') },
+  fidi: { name: 'New York – Lower Manhattan', label: 'New York: Lower Manhattan (Wall Street, One WTC)', group: 'Mesta', load: () => import('./data/fidi.json') },
+} satisfies Record<string, ExampleScene>;
 type OsmScene = keyof typeof OSM_SCENES;
 
 const ICONS: Record<string, string> = {
@@ -73,6 +82,7 @@ const ICONS: Record<string, string> = {
   undo: '<path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
   redo: '<path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/>',
   hand: '<path d="M8 12V6a1.5 1.5 0 0 1 3 0v5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2 6-5.5 6S6 18 5 15l-1.2-3a1.4 1.4 0 0 1 2.4-1.2L8 13"/>',
+  people: '<circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20v-2a5 5 0 0 1 10 0v2M15 20v-1.5a4 4 0 0 1 6-3.4"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
 };
 const icon = (name: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
@@ -373,7 +383,17 @@ export class UI {
     const tpl = el('select', 'scenesel tplsel');
     tpl.title = 'Nova scena iz primera';
     tpl.append(new Option('Primeri scen …', ''));
-    for (const [v, o] of Object.entries(OSM_SCENES)) tpl.append(new Option(o.label, v));
+    const groups = new Map<string, HTMLOptGroupElement>();
+    for (const [v, o] of Object.entries(OSM_SCENES) as Array<[string, ExampleScene]>) {
+      let g = groups.get(o.group);
+      if (!g) {
+        g = document.createElement('optgroup');
+        g.label = o.group;
+        groups.set(o.group, g);
+        tpl.append(g);
+      }
+      g.append(new Option(o.label, v));
+    }
     tpl.onchange = () => {
       const v = tpl.value as OsmScene | '';
       tpl.value = '';
@@ -523,6 +543,55 @@ export class UI {
       });
       this.addbar.append(gb, pop);
     };
+    // paketi figur: uvožene figure (velikost, obleka, lasje, poza) se dodajo v sceno; scena si zapomni, iz katerega paketa so
+    const packBtn = el('button', '', icon('people'));
+    packBtn.title = 'Paketi figur';
+    const packPop = el('div', 'popover');
+    packPop.hidden = true;
+    const fillPacks = () => {
+      packPop.replaceChildren();
+      const lib = listPacks();
+      if (!lib.length) {
+        const h = el('div', 'hint', 'Ni uvoženih paketov figur. Uvozi paket v kartici Datoteka (Uvozi paket figur).');
+        h.style.gridColumn = '1 / -1';
+        packPop.append(h);
+        return;
+      }
+      for (const pack of lib) {
+        const head = el('div', 'hint', pack.name);
+        head.style.cssText = 'grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;gap:8px';
+        const del = el('button', '', '✕');
+        del.title = `Odstrani paket »${pack.name}« iz knjižnice (figure v scenah ostanejo)`;
+        del.style.cssText = 'width:auto;height:auto;padding:2px 6px';
+        del.onclick = () => {
+          if (confirm(`Odstranim paket »${pack.name}« iz knjižnice? Figure v obstoječih scenah ostanejo.`)) {
+            removePack(pack.id);
+            fillPacks();
+          }
+        };
+        head.append(del);
+        packPop.append(head);
+        for (const f of pack.figures) {
+          const b = el('button', '', f.name);
+          b.onclick = () => {
+            this.addPackFigure(pack, f);
+            packPop.hidden = true;
+          };
+          packPop.append(b);
+        }
+      }
+    };
+    this.refreshPacks = fillPacks;
+    packBtn.onclick = (e) => {
+      e.stopPropagation();
+      fillPacks();
+      packPop.hidden = !packPop.hidden;
+      this.placePopover(packPop, packBtn);
+    };
+    window.addEventListener('pointerdown', (e) => {
+      if (!packPop.contains(e.target as Node)) packPop.hidden = true;
+    });
+    this.addbar.append(packBtn, packPop);
     group('dog', 'Živali', ['dog', 'horse', 'elephant', ...ANIMAL_TYPES]);
     group('wall', 'Stene in pohištvo', ['wall', 'wallDoor', 'wallWindow', 'table', 'chair']);
     group('house', 'Stavbe', ['house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'hayrack', 'shell', 'townhouse', 'block', 'tower', 'church']);
@@ -706,6 +775,7 @@ export class UI {
       btn('Shrani sceno', () => downloadScene(state, view.store), 'Prenese sceno kot datoteko JSON'),
       btn('Odpri sceno', async () => {
         const data = await pickSceneFile();
+        checkRequirements(data); // scene s figurami iz paketov: paket mora biti prej uvožen
         applyScene(data, state, view.store);
         const name = sceneNameOf(data);
         if (name) renameScene(currentSceneId(), name);
@@ -714,9 +784,16 @@ export class UI {
       btn('PNG + vodila', async () => downloadBlob(await view.exportPng(2400, true), `${fileSafeName()}-kader-z-vodili.png`)),
       btn('PNG čisto', async () => downloadBlob(await view.exportPng(2400, false), `${fileSafeName()}-kader.png`)),
     );
-    const reset = btn('Ponastavi sceno', () => { if (confirm('Ponastavim sceno na začetno?')) { resetScene(state, view.store); this.afterLoad(); } });
-    reset.style.color = 'var(--muted)';
-    const fileCard = this.card('Datoteka', false, files, reset);
+    const packs = el('div', 'btns');
+    packs.append(
+      btn('Uvozi paket figur', async () => {
+        const pack = parsePack(await pickSceneFile());
+        if (!savePack(pack)) throw new Error('Paketa ni mogoče shraniti: v brskalniku ni več prostora.');
+        this.refreshPacks();
+        alert(`Uvožen paket »${pack.name}« (${pack.figures.length} figur). Najdeš ga v levi vrstici pod ikono Paketi figur.`);
+      }),
+    );
+    const fileCard = this.card('Datoteka', false, files, packs);
 
     side.append(this.sceneList(), this.objectList(), this.poseCard(), camCard, lightCard, guidesCard, viewCard, fileCard);
     // navedba virov za primere mest (obvezna po licenci ODbL)
@@ -790,7 +867,22 @@ export class UI {
         };
         presets.append(b);
       }
-      content.append(presets, el('div', 'hint', 'V sceni klikni rumeno piko (sklep) in jo zavrti z gizmom.'));
+      content.append(presets);
+      if (rig.id === 'man' || rig.id === 'woman') {
+        const pick = (label: string, key: 'outfit' | 'hair', opts: Record<string, string>) => {
+          const sel_ = el('select', 'sel');
+          for (const [v, l] of Object.entries(opts)) sel_.append(new Option(l, v));
+          sel_.onchange = () => {
+            const p = sel();
+            if (p) store.update(p.id, { [key]: sel_.value === 'none' ? undefined : sel_.value });
+          };
+          this.poseSyncs.push(() => (sel_.value = sel()?.[key] ?? 'none'));
+          content.append(this.row(label, sel_));
+        };
+        pick('Obleka', 'outfit', OUTFITS);
+        pick('Lasje', 'hair', HAIRS);
+      }
+      content.append(el('div', 'hint', 'V sceni klikni rumeno piko (sklep) in jo zavrti z gizmom.'));
       for (const g of rig.groups) {
         const d = el('details');
         d.append(el('summary', 'hint', g.title));
@@ -967,6 +1059,24 @@ export class UI {
   }
 
   // ---- vrstica izbranega objekta ----
+
+  /** Osveži seznam paketov figur v levi vrstici (po uvozu). */
+  private refreshPacks: () => void = () => {};
+
+  /** Doda figuro iz paketa v sceno: velikost, obleka, lasje in poza so iz paketa; scena si zapomni paket (figureRef). */
+  private addPackFigure(pack: FigurePack, f: FigureDef): void {
+    const { view } = this;
+    const o = view.store.add(f.type, view.groundTarget());
+    view.store.update(o.id, {
+      name: f.name,
+      size: [...f.size],
+      position: [o.position[0], f.size[1] / 2, o.position[2]],
+      outfit: f.outfit,
+      hair: f.hair,
+      pose: f.pose ? structuredClone(f.pose) : {},
+      figureRef: figureRef(pack.id, f.id),
+    });
+  }
 
   /** Vpraša za novo ime predmeta in ga preimenuje. */
   private renameObject(id: string): void {

@@ -1,5 +1,7 @@
 import { compressToUTF16, decompressFromUTF16 } from 'lz-string';
 import { ANIMAL_TYPES } from './animalRigs';
+import { HAIRS, OUTFITS } from './clothes';
+import { findFigure, listPacks, splitRef } from './packs';
 import { Pose } from './figure';
 import { ASPECTS, constrain, PerspectiveMode } from './camera';
 import { GuideSettings } from './guides';
@@ -17,11 +19,51 @@ export interface SceneFile extends AppState {
   version: number;
   /** Ime scene; ob uvozu se nastavi kot ime trenutne scene. */
   name?: string;
+  /** Paketi figur, ki jih scena potrebuje (figure iz paketov); ob uvozu morajo biti paketi že v knjižnici. */
+  requires?: Array<{ pack: string; name: string; figures: string[] }>;
   objects: ObjectParams[];
 }
 
+/** Seznam paketov figur, ki jih objekti uporabljajo (iz sklicev figureRef). */
+export function requiredPacks(objects: Array<{ figureRef?: string }>): NonNullable<SceneFile['requires']> {
+  const byPack = new Map<string, Set<string>>();
+  for (const o of objects) {
+    const r = o.figureRef ? splitRef(o.figureRef) : null;
+    if (!r) continue;
+    if (!byPack.has(r[0])) byPack.set(r[0], new Set());
+    byPack.get(r[0])!.add(r[1]);
+  }
+  const lib = new Map(listPacks().map((p) => [p.id, p]));
+  return [...byPack].map(([pack, figs]) => ({ pack, name: lib.get(pack)?.name ?? pack, figures: [...figs] }));
+}
+
+/** Pred uvozom scene: vsi paketi figur, ki jih scena potrebuje, in njihove figure morajo biti že uvoženi. */
+export function checkRequirements(data: unknown): void {
+  if (!isObj(data)) return;
+  const refs = Array.isArray(data.objects) ? (data.objects as unknown[]).filter(isObj).map((o) => ({ figureRef: typeof o.figureRef === 'string' ? o.figureRef : undefined })) : [];
+  const need = requiredPacks(refs);
+  if (Array.isArray(data.requires)) {
+    for (const r of data.requires) {
+      if (isObj(r) && typeof r.pack === 'string' && !need.some((n) => n.pack === r.pack)) need.push({ pack: r.pack, name: typeof r.name === 'string' ? r.name : r.pack, figures: [] });
+    }
+  }
+  const lib = new Map(listPacks().map((p) => [p.id, p]));
+  const names = new Map(Array.isArray(data.requires) ? (data.requires as unknown[]).filter(isObj).map((r) => [String(r.pack), String(r.name ?? r.pack)] as const) : []);
+  const missingPacks: string[] = [];
+  const missingFigs: string[] = [];
+  for (const n of need) {
+    const pack = lib.get(n.pack);
+    const label = names.get(n.pack) ?? n.name;
+    if (!pack) missingPacks.push(label);
+    else for (const f of n.figures) if (!findFigure(pack, f)) missingFigs.push(`${label}: ${f}`);
+  }
+  if (missingPacks.length) throw new Error(`Scena potrebuje pakete figur, ki jih še nimaš: ${missingPacks.join(', ')}.\n\nNajprej jih uvozi (Datoteka → Uvozi paket figur), nato znova odpri sceno.`);
+  if (missingFigs.length) throw new Error(`Uvoženi paketi nimajo vseh figur, ki jih scena potrebuje: ${missingFigs.join(', ')}.\n\nUvozi novejšo različico paketa.`);
+}
+
 export function serialize(state: AppState, store: ObjectStore): SceneFile {
-  return { version: FILE_VERSION, name: currentSceneName(), objects: structuredClone(store.list()), camera: { ...state.camera }, light: { ...state.light }, guides: { ...state.guides }, view: { ...state.view } };
+  const requires = requiredPacks(store.list());
+  return { version: FILE_VERSION, name: currentSceneName(), ...(requires.length ? { requires } : {}), objects: structuredClone(store.list()), camera: { ...state.camera }, light: { ...state.light }, guides: { ...state.guides }, view: { ...state.view } };
 }
 
 const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair', 'house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church', 'shell', 'roads', 'water', 'townhouse', 'block', 'tower', 'car', 'hatch', 'suv', 'van', 'bus', 'eiffel', 'ferris', 'boat', 'colosseum', 'road', 'tree', 'pine', 'bush', 'yard', 'terrain', 'river', 'bridge', 'hill', 'hayrack', ...ANIMAL_TYPES];
@@ -42,6 +84,9 @@ function parseObjects(raw: unknown): ObjectParams[] {
       ...(opening ? { opening: { w: opening.w, h: opening.h, x: opening.x, y: opening.y } } : {}),
       ...(Array.isArray(o.heights) && typeof o.hn === 'number' && o.heights.length === (o.hn + 1) ** 2 && o.heights.every((n) => typeof n === 'number' && isFinite(n)) ? { heights: o.heights as number[], hn: o.hn } : {}),
       ...(Array.isArray(o.paths) ? { paths: (o.paths as unknown[]).filter((q): q is { w: number; p: number[] } => isObj(q) && typeof q.w === 'number' && Array.isArray(q.p) && q.p.every((n) => typeof n === 'number' && isFinite(n))) } : {}),
+      ...(typeof o.figureRef === 'string' && o.figureRef.includes('/') ? { figureRef: o.figureRef } : {}),
+      ...(typeof o.outfit === 'string' && o.outfit in OUTFITS && o.outfit !== 'none' ? { outfit: o.outfit } : {}),
+      ...(typeof o.hair === 'string' && o.hair in HAIRS && o.hair !== 'none' ? { hair: o.hair } : {}),
       ...(typeof o.seed === 'number' && isFinite(o.seed) ? { seed: o.seed } : {}),
       ...(typeof o.flat === 'number' && isFinite(o.flat) ? { flat: Math.min(0.9, Math.max(0, o.flat)) } : {}),
       id: typeof o.id === 'string' && o.id ? o.id : `o${i}`,
