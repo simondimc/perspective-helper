@@ -858,14 +858,30 @@ export class UI {
       this.poseSyncs = [];
       if (!rig) return;
       this.syncTarget = this.poseSyncs;
-      const presets = el('div', 'chips');
+      // poze z imenom »Skupina: poza« se združijo pod naslov skupine; ostale so v skupini »Osnovne«
+      const groups = new Map<string, string[]>();
       for (const name of Object.keys(rig.poses)) {
-        const b = el('button', 'chip', name);
-        b.onclick = () => {
-          const p = sel();
-          if (p) store.setPose(p.id, rig.poses[name]);
-        };
-        presets.append(b);
+        const g = name.includes(': ') ? name.slice(0, name.indexOf(': ')) : 'Osnovne';
+        groups.set(g, [...(groups.get(g) ?? []), name]);
+      }
+      const presets = el('div');
+      presets.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+      for (const [g, names] of groups) {
+        const chips = el('div', 'chips');
+        for (const name of names) {
+          const b = el('button', 'chip', name.includes(': ') ? name.slice(name.indexOf(': ') + 2) : name);
+          b.onclick = () => {
+            const p = sel();
+            if (p) store.setPose(p.id, rig.poses[name]);
+          };
+          chips.append(b);
+        }
+        if (groups.size > 1) {
+          const h = el('div', 'hint', g);
+          h.style.cssText = 'font-size:11px;opacity:.65;text-transform:uppercase;letter-spacing:.04em';
+          presets.append(h);
+        }
+        presets.append(chips);
       }
       content.append(presets);
       if (rig.id === 'man' || rig.id === 'woman') {

@@ -36,6 +36,14 @@ export const WEAPONS: Record<string, string> = {
   sword: 'Meč',
   rapier: 'Rapir',
   dagger: 'Bodalo',
+  spear: 'Sulica',
+  staff: 'Palica',
+  axe: 'Sekira',
+  battleAxe: 'Bojna sekira (dvojna)',
+  mace: 'Buzdovan',
+  warhammer: 'Bojno kladivo',
+  club: 'Gorjača',
+  bow: 'Lok',
   buckler: 'Ščit: majhen (buckler)',
   roundShield: 'Ščit: okrogel',
   kiteShield: 'Ščit: trikoten',
@@ -345,6 +353,8 @@ function weaponParts(id: string, weapon: string, side: 1 | -1): Part[] {
   const X = new Vector3(side, 0, 0);
   const geoms: BufferGeometry[] = [];
   const grip = (len: number, r: number) => geoms.push(bar(at(-len / 2 - 0.02), u, w0, len, r * 1.6, r * 1.6));
+  const rod = (k0: number, len: number, r: number): BufferGeometry =>
+    new CylinderGeometry(r, r, len, 10).applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), u)).translate(...at(k0 + len / 2).toArray());
   const pommel = (k: number, r: number) => geoms.push(new SphereGeometry(r, 12, 8).translate(...at(k).toArray()));
   const crossGuard = (k: number, width: number) => geoms.push(bar(at(k).addScaledVector(X, -width / 2), X, w0, width, 0.013, 0.013));
   if (weapon === 'sabre') {
@@ -387,6 +397,48 @@ function weaponParts(id: string, weapon: string, side: 1 | -1): Part[] {
     crossGuard(0.05, 0.17);
     geoms.push(bar(at(0.06), u, w0, 0.19, 0.032, 0.007));
     geoms.push(bar(at(0.25), u, w0, 0.11, 0.016, 0.006));
+  } else if (weapon === 'staff' || weapon === 'spear') {
+    const top = weapon === 'staff' ? 1.1 : 1.35;
+    geoms.push(rod(-0.55, top + 0.55, weapon === 'staff' ? 0.018 : 0.014));
+    if (weapon === 'staff') geoms.push(new SphereGeometry(0.04, 12, 8).translate(...at(top + 0.03).toArray()));
+    else {
+      geoms.push(bar(at(top), u, w0, 0.16, 0.05, 0.008));
+      geoms.push(bar(at(top + 0.16), u, w0, 0.09, 0.022, 0.006));
+    }
+  } else if (weapon === 'axe' || weapon === 'battleAxe') {
+    const len = weapon === 'axe' ? 0.7 : 1.05;
+    geoms.push(rod(-0.12, len + 0.12, 0.017));
+    const head = (sgn: number) => {
+      geoms.push(bar(at(len - 0.2).addScaledVector(w0, sgn * 0.07), u, w0, 0.2, 0.12, 0.012));
+    };
+    geoms.push(bar(at(len - 0.15), u, w0, 0.12, 0.05, 0.04));
+    head(1);
+    if (weapon === 'battleAxe') head(-1);
+    else geoms.push(bar(at(len - 0.1).addScaledVector(w0, -0.045), u, w0, 0.07, 0.03, 0.03));
+  } else if (weapon === 'mace') {
+    geoms.push(rod(-0.1, 0.7, 0.017));
+    geoms.push(new SphereGeometry(0.065, 14, 10).translate(...at(0.77).toArray()));
+    for (const a of [0, 60, 120]) {
+      const wd = w0.clone().applyAxisAngle(u, (a * Math.PI) / 180);
+      geoms.push(bar(at(0.77 - 0.09), u, wd, 0.18, 0.15, 0.012));
+    }
+  } else if (weapon === 'warhammer') {
+    geoms.push(rod(-0.12, 0.85, 0.017));
+    geoms.push(bar(at(0.62), u, w0, 0.12, 0.04, 0.05).translate(0, 0, 0));
+    geoms.push(bar(at(0.62).addScaledVector(w0, 0.07), u, w0, 0.12, 0.09, 0.06));
+    geoms.push(bar(at(0.665).addScaledVector(w0, -0.05), u, w0, 0.03, 0.12, 0.012));
+  } else if (weapon === 'club') {
+    geoms.push(new CylinderGeometry(0.05, 0.016, 0.6, 12).applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), u.clone().negate())).translate(...at(0.28).toArray()));
+  } else if (weapon === 'bow') {
+    // lok: lok iz odsekov v ravnini roke, tetiva ravna; držaj je v roki
+    const pt = (t: number) => G.clone().addScaledVector(w0, t * 0.75).addScaledVector(u, 0.09 * (1 - t * t));
+    const N = 8;
+    for (let i = 0; i < N; i++) {
+      const A = pt(-1 + (2 * i) / N);
+      const B = pt(-1 + (2 * (i + 1)) / N);
+      geoms.push(bar(A, new Vector3().subVectors(B, A).normalize(), X, A.distanceTo(B), 0.02 - Math.abs(i - N / 2 + 0.5) * 0.002, 0.016));
+    }
+    geoms.push(bar(pt(-1), w0, X, 1.5, 0.004, 0.004));
   }
   return geoms.filter((g) => g.attributes.position.count > 0).map((g) => ({ joint, make: () => g }));
 }

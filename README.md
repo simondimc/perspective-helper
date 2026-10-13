@@ -39,7 +39,7 @@ npm run build    # preverjanje tipov + produkcijska gradnja
   vse tudi z vnosom vrednosti. Vsi drsniki imajo številčno polje.
 - **Ambientna okluzija** (GTAO) za senčenje brez luči; ne deluje pri ribjem očesu.
 - **Kader**: belo ozadje (papir), barva tal, debelina robov pri prikazu »samo robovi«.
-- **Obleka, lasje in orožje** figur (moški, ženska): v kartici Poza izbereš obleko (halja, plašč, obleka, jakna, oklep, stillsuit, uniforme: vojak, policist, gasilec, zdravnik, kuhar, vitez, mušketir), lase in orožje ali ščit v vsaki roki (sablja, meč, rapir, bodalo, majhen/okrogel/trikoten ščit); deli sledijo pozi. Poze »Sabljanje: …« poravnajo orožje z roko.
+- **Obleka, lasje in orožje** figur (moški, ženska): v kartici Poza izbereš obleko (halja, plašč, obleka, jakna, oklep, stillsuit, uniforme: vojak, policist, gasilec, zdravnik, kuhar, vitez, mušketir), lase in orožje ali ščit v vsaki roki (sablja, meč, rapir, bodalo, sulica, palica, sekira, bojna sekira, buzdovan, bojno kladivo, gorjača, lok, majhen/okrogel/trikoten ščit); deli sledijo pozi. Poze »Sabljanje: …« poravnajo orožje z roko.
 - **Paketi figur**: datoteka JSON z imenovanimi figurami (velikost, obleka, lasje, poza). Paket samo uvoziš (*Datoteka → Uvozi paket figur*),
   figure iz knjižnice nato dodajaš z ikono »Paketi figur« v levi vrstici. Scena si zapomni pakete, ki jih uporablja (`requires`);
   ob odpiranju take scene morajo biti paketi že uvoženi, sicer uvoz javi, kateri manjkajo.
