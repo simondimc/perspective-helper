@@ -45,6 +45,9 @@ export interface TerrainParams {
   /** Figure: obleka in lasje (glej clothes.ts). */
   outfit?: string;
   hair?: string;
+  /** Orožje v desni/levi roki (glej clothes.ts). */
+  weaponR?: string;
+  weaponL?: string;
   /** Figura iz paketa figur: »paket/figura« (glej packs.ts). */
   figureRef?: string;
 }
@@ -80,6 +83,9 @@ export interface ObjectParams {
   /** Figure: obleka in lasje (glej clothes.ts). */
   outfit?: string;
   hair?: string;
+  /** Orožje v desni/levi roki (glej clothes.ts). */
+  weaponR?: string;
+  weaponL?: string;
   /** Figura iz paketa figur: »paket/figura« (glej packs.ts). */
   figureRef?: string;
 }
@@ -257,7 +263,7 @@ export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, openi
       return new ConeGeometry(0.5, 1, 64).scale(sx, sy, sz);
     case 'figure':
     case 'woman':
-      return rigGeometry(rigFor(type, terrain?.outfit, terrain?.hair)!, pose ?? {}, size);
+      return rigGeometry(rigFor(type, terrain?.outfit, terrain?.hair, terrain?.weaponR, terrain?.weaponL)!, pose ?? {}, size);
     case 'dog':
     case 'horse':
     case 'elephant':

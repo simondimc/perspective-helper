@@ -7,7 +7,7 @@ import { ANIMAL_TYPES } from './animalRigs';
 import { ObjectStyle, ObjectType, TYPE_LABELS } from './objects';
 import { FigureDef, FigurePack, figureRef, listPacks, parsePack, removePack, savePack } from './packs';
 import { History } from './history';
-import { HAIRS, OUTFITS } from './clothes';
+import { HAIRS, OUTFITS, WEAPONS } from './clothes';
 import { DEFAULT_OPENING, clampOpening, isWallType } from './wall';
 import { PROJECTION_LABELS } from './projection';
 import { SceneView, TransformMode, ViewMode } from './scene';
@@ -869,7 +869,7 @@ export class UI {
       }
       content.append(presets);
       if (rig.id === 'man' || rig.id === 'woman') {
-        const pick = (label: string, key: 'outfit' | 'hair', opts: Record<string, string>) => {
+        const pick = (label: string, key: 'outfit' | 'hair' | 'weaponR' | 'weaponL', opts: Record<string, string>) => {
           const sel_ = el('select', 'sel');
           for (const [v, l] of Object.entries(opts)) sel_.append(new Option(l, v));
           sel_.onchange = () => {
@@ -881,6 +881,8 @@ export class UI {
         };
         pick('Obleka', 'outfit', OUTFITS);
         pick('Lasje', 'hair', HAIRS);
+        pick('Orožje/ščit: desna roka', 'weaponR', WEAPONS);
+        pick('Orožje/ščit: leva roka', 'weaponL', WEAPONS);
       }
       content.append(el('div', 'hint', 'V sceni klikni rumeno piko (sklep) in jo zavrti z gizmom.'));
       for (const g of rig.groups) {
@@ -1073,6 +1075,8 @@ export class UI {
       position: [o.position[0], f.size[1] / 2, o.position[2]],
       outfit: f.outfit,
       hair: f.hair,
+      weaponR: f.weaponR,
+      weaponL: f.weaponL,
       pose: f.pose ? structuredClone(f.pose) : {},
       figureRef: figureRef(pack.id, f.id),
     });

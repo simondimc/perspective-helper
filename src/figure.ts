@@ -153,7 +153,8 @@ function rawGeometry(rig: Rig, pose: Pose, seg: number): BufferGeometry {
     }
     return g;
   });
-  return mergeGeometries(geoms)!;
+  // deli iz različnih virov so lahko indeksirani ali ne (npr. iztisnjene oblike): pred združitvijo jih poenotimo
+  return mergeGeometries(geoms.map((g) => (g.index ? g.toNonIndexed() : g)))!;
 }
 
 const restCache = new Map<string, { center: Vector3; size: Vector3 }>();
@@ -226,6 +227,13 @@ export const HUMAN_POSES: Record<string, Pose> = {
   Hodi: { hipL: [28, 0, 3], kneeL: [5, 0, 0], hipR: [-22, 0, 3], kneeR: [30, 0, 0], shoulderL: [-25, 0, 8], shoulderR: [25, 0, 8], elbowL: [12, 0, 0], elbowR: [25, 0, 0] },
   Sedi: { hipL: [90, 0, 6], hipR: [90, 0, 6], kneeL: [90, 0, 0], kneeR: [90, 0, 0], shoulderL: [20, 0, 8], shoulderR: [20, 0, 8], elbowL: [60, 0, 0], elbowR: [60, 0, 0], torso: [5, 0, 0] },
   'Roke gor': { shoulderL: [0, 0, 165], shoulderR: [0, 0, 165] },
+  // zgodovinsko evropsko sabljanje z rapirjem (desna roka) in bodalom (leva roka); desna noga naprej, trup zasukan v profil
+  'Sabljanje: čakanje': { torso: [4, 28, 0], neck: [0, -22, 0], hipR: [32, 0, 6], kneeR: [30, 0, 0], hipL: [-12, 0, 10], kneeL: [28, 0, 0], shoulderR: [75, 0, 12], elbowR: [25, 0, 0], shoulderL: [55, 0, 18], elbowL: [85, 0, 0], wristR: [-45, 0, 0], wristL: [-45, 0, 0] },
+  'Sabljanje: izpad': { torso: [14, 34, 0], neck: [-8, -30, 0], hipR: [62, 0, 6], kneeR: [62, 0, 0], hipL: [-32, 0, 14], kneeL: [4, 0, 0], shoulderR: [95, 0, 4], elbowR: [2, 0, 0], shoulderL: [-22, 0, 40], elbowL: [55, 0, 0], wristR: [-45, 0, 0], wristL: [-45, 0, 0] },
+  'Sabljanje: obramba': { torso: [4, 26, 0], neck: [0, -20, 0], hipR: [30, 0, 6], kneeR: [28, 0, 0], hipL: [-12, 0, 10], kneeL: [26, 0, 0], shoulderR: [60, 0, 14], elbowR: [75, 0, 0], shoulderL: [85, 0, 38], elbowL: [35, 0, 0], wristR: [-45, 0, 0], wristL: [-45, 0, 0] },
+  'Sabljanje: umik': { torso: [-4, 24, 0], neck: [4, -18, 0], hipR: [18, 0, 6], kneeR: [14, 0, 0], hipL: [-22, 0, 12], kneeL: [38, 0, 0], shoulderR: [70, 0, 12], elbowR: [30, 0, 0], shoulderL: [50, 0, 22], elbowL: [95, 0, 0], wristR: [-45, 0, 0], wristL: [-45, 0, 0] },
+  'Sabljanje: pozdrav': { torso: [2, 14, 0], neck: [0, -10, 0], hipR: [14, 0, 4], kneeR: [4, 0, 0], hipL: [-6, 0, 6], kneeL: [4, 0, 0], shoulderR: [30, 0, 28], elbowR: [105, 0, 0], shoulderL: [10, 0, 14], elbowL: [30, 0, 0], wristR: [-45, 0, 0], wristL: [-45, 0, 0] },
+  'Ščit: obramba': { torso: [4, 20, 0], neck: [0, -16, 0], hipR: [28, 0, 6], kneeR: [26, 0, 0], hipL: [-10, 0, 10], kneeL: [24, 0, 0], shoulderR: [80, 0, 12], elbowR: [20, 0, 0], wristR: [-45, 0, 0], shoulderL: [35, 0, 22], elbowL: [105, 0, 0], wristL: [0, 70, 0] },
   Tek: { hipL: [50, 0, 2], kneeL: [20, 0, 0], hipR: [-30, 0, 2], kneeR: [95, 0, 0], shoulderL: [-45, 0, 10], shoulderR: [50, 0, 10], elbowL: [90, 0, 0], elbowR: [90, 0, 0], torso: [15, 0, 0] },
 };
 

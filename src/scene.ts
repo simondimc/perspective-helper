@@ -291,6 +291,7 @@ export class SceneView {
     this.syncGizmoHandles();
     this.syncJointProxy();
     this.refreshLight();
+    this.invalidate();
   }
 
   // ---- izbira in TransformControls ----

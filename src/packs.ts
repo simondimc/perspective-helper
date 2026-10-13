@@ -1,5 +1,5 @@
 import { Pose } from './figure';
-import { HAIRS, OUTFITS } from './clothes';
+import { HAIRS, OUTFITS, WEAPONS } from './clothes';
 import { Triple } from './objects';
 
 // Paketi figur: datoteka z imenovanimi figurami (velikost, obleka, lasje, poza), ki jo uvoziš v knjižnico; figure nato dodajaš v scene.
@@ -20,6 +20,8 @@ export interface FigureDef {
   size: Triple;
   outfit?: string;
   hair?: string;
+  weaponR?: string;
+  weaponL?: string;
   pose?: Pose;
 }
 
@@ -56,6 +58,8 @@ export function parsePack(raw: unknown): FigurePack {
       size: [...f.size] as Triple,
       ...(typeof f.outfit === 'string' && f.outfit in OUTFITS && f.outfit !== 'none' ? { outfit: f.outfit } : {}),
       ...(typeof f.hair === 'string' && f.hair in HAIRS && f.hair !== 'none' ? { hair: f.hair } : {}),
+      ...(typeof f.weaponR === 'string' && f.weaponR in WEAPONS && f.weaponR !== 'none' ? { weaponR: f.weaponR } : {}),
+      ...(typeof f.weaponL === 'string' && f.weaponL in WEAPONS && f.weaponL !== 'none' ? { weaponL: f.weaponL } : {}),
       ...(Object.keys(pose).length ? { pose } : {}),
     };
   });

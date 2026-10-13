@@ -1,6 +1,6 @@
 import { compressToUTF16, decompressFromUTF16 } from 'lz-string';
 import { ANIMAL_TYPES } from './animalRigs';
-import { HAIRS, OUTFITS } from './clothes';
+import { HAIRS, OUTFITS, WEAPONS } from './clothes';
 import { findFigure, listPacks, splitRef } from './packs';
 import { Pose } from './figure';
 import { ASPECTS, constrain, PerspectiveMode } from './camera';
@@ -86,6 +86,8 @@ function parseObjects(raw: unknown): ObjectParams[] {
       ...(Array.isArray(o.paths) ? { paths: (o.paths as unknown[]).filter((q): q is { w: number; p: number[] } => isObj(q) && typeof q.w === 'number' && Array.isArray(q.p) && q.p.every((n) => typeof n === 'number' && isFinite(n))) } : {}),
       ...(typeof o.figureRef === 'string' && o.figureRef.includes('/') ? { figureRef: o.figureRef } : {}),
       ...(typeof o.outfit === 'string' && o.outfit in OUTFITS && o.outfit !== 'none' ? { outfit: o.outfit } : {}),
+      ...(typeof o.weaponR === 'string' && o.weaponR in WEAPONS && o.weaponR !== 'none' ? { weaponR: o.weaponR } : {}),
+      ...(typeof o.weaponL === 'string' && o.weaponL in WEAPONS && o.weaponL !== 'none' ? { weaponL: o.weaponL } : {}),
       ...(typeof o.hair === 'string' && o.hair in HAIRS && o.hair !== 'none' ? { hair: o.hair } : {}),
       ...(typeof o.seed === 'number' && isFinite(o.seed) ? { seed: o.seed } : {}),
       ...(typeof o.flat === 'number' && isFinite(o.flat) ? { flat: Math.min(0.9, Math.max(0, o.flat)) } : {}),
