@@ -6,6 +6,8 @@ prikaže perspektivna vodila (horizont, bežišča, snope črt) ter tone v "mav�
 
 **Spletna različica: https://simondimc.github.io/perspective-helper/**
 
+![Primer vmesnika](docs/primer-vmesnik.webp)
+
 ![Primer](docs/primer.webp)
 
 ## Zagon
