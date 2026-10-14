@@ -17,7 +17,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
-import { bedGeometry, chairGeometry, tableGeometry } from './furniture';
+import { bedGeometry, chairGeometry, fountainGeometry, plantGeometry, tableGeometry } from './furniture';
 import { HOUSE_KINDS, HouseKind, houseGeometry } from './house';
 import { RoadPath, roadsGeometry } from './roads';
 import { terrainGeometry } from './terrain';
@@ -30,7 +30,8 @@ import { isPosable, rigOf } from './rigs';
 import { rigFor } from './clothes';
 import { restSize } from './figure';
 
-export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair' | 'bed' | HouseKind | NatureKind | CityKind | 'roads' | 'water';
+export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair' | 'bed' | 'plant' | 'plantBig' | 'cactus' | 'palm' | 'fern' | 'flowers' | 'bamboo' | 'monstera' | 'fig' | 'fountain' | HouseKind | NatureKind | CityKind | 'roads' | 'water';
+export const PLANT_TYPES: ObjectType[] = ['plant', 'plantBig', 'cactus', 'palm', 'fern', 'flowers', 'bamboo', 'monstera', 'fig'];
 export type ObjectType = BaseType | AnimalType;
 
 /** Dodatni parametri pokrajine. */
@@ -107,6 +108,16 @@ export const TYPE_LABELS: Record<ObjectType, string> = {
   table: 'Miza',
   chair: 'Stol',
   bed: 'Postelja',
+  plant: 'Rastlina v vazi',
+  plantBig: 'Velika rastlina v vazi',
+  cactus: 'Kaktus v loncu',
+  palm: 'Palma v loncu',
+  fern: 'Praprot v loncu',
+  flowers: 'Cvetje v vazi',
+  bamboo: 'Bambus v loncu',
+  monstera: 'Monstera v loncu',
+  fig: 'Figovec v loncu',
+  fountain: 'Nizek vodnjak',
   house: 'Hiša',
   houseHip: 'Hiša (štirikapna)',
   houseTwo: 'Hiša z nadstropjem',
@@ -156,6 +167,16 @@ const DEFAULT_SIZE: Partial<Record<ObjectType, Triple>> = {
   table: [1.4, 0.75, 0.8],
   chair: [0.45, 0.9, 0.45],
   bed: [1.6, 0.9, 2.1],
+  plant: [0.3, 0.5, 0.3],
+  plantBig: [0.8, 1.8, 0.8],
+  cactus: [0.35, 0.6, 0.35],
+  palm: [1, 2.2, 1],
+  fern: [0.6, 0.7, 0.6],
+  flowers: [0.3, 0.55, 0.3],
+  bamboo: [0.9, 2.6, 0.9],
+  monstera: [1.3, 1.4, 1.3],
+  fig: [1, 2.4, 1],
+  fountain: [1.8, 0.8, 1.8],
   house: [8, 5.5, 6],
   houseHip: [8, 5, 6],
   houseTwo: [9, 7.5, 7],
@@ -218,7 +239,7 @@ export function buildEdges(type: ObjectType, size: Triple, pose?: Pose, opening?
     return new EdgesGeometry(buildGeometry(type, size, pose, opening), 1);
   } else if (type === 'dog' || type === 'horse' || type === 'elephant' || isAnimalType(type)) {
     return new EdgesGeometry(rigGeometry(rigOf(type)!, pose ?? {}, size, true), 12);
-  } else if (type === 'table' || type === 'chair' || type === 'bed' || isHouseOrNature(type)) {
+  } else if (type === 'table' || type === 'chair' || type === 'bed' || type === 'plant' || PLANT_TYPES.includes(type) || type === 'fountain' || isHouseOrNature(type)) {
     return new EdgesGeometry(buildGeometry(type, size), 1);
   } else if (type === 'box' || type === 'wall' || type === 'figure' || type === 'woman') {
     return new EdgesGeometry(buildGeometry(type, size, pose, undefined, terrain), type === 'box' || type === 'wall' ? 1 : 35);
@@ -276,6 +297,18 @@ export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, openi
       return chairGeometry(size);
     case 'bed':
       return bedGeometry(size);
+    case 'plant':
+    case 'plantBig':
+    case 'cactus':
+    case 'palm':
+    case 'fern':
+    case 'flowers':
+    case 'bamboo':
+    case 'monstera':
+    case 'fig':
+      return plantGeometry(size, type);
+    case 'fountain':
+      return fountainGeometry(size);
     case 'house':
     case 'houseHip':
     case 'houseTwo':

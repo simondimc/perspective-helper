@@ -45,6 +45,16 @@ const ICONS: Record<string, string> = {
   table: '<path d="M3 9h18M5 9v11M19 9v11M7 9v6M17 9v6"/>',
   chair: '<path d="M7 4v16M7 12h10v8M17 12v8M7 4h2"/>',
   bed: '<path d="M3 18V6M3 14h18v4M21 14v-2a3 3 0 0 0-3-3H11v5M6.5 12.5h.01"/>',
+  plant: '<path d="M8 21h8l1-6H7zM12 15V9M12 11C9 11 7 9 7 6c3 0 5 2 5 5zM12 9c0-3 2-5 5-5 0 3-2 5-5 5z"/>',
+  plantBig: '<path d="M9 22h6l1-5H8zM12 17V8M12 13C8 13 6 10 6 6c4 0 6 3 6 7zM12 10c0-4 2-7 6-7 0 4-2 7-6 7z"/>',
+  cactus: '<path d="M9 22h6l1-4H8zM12 18V4M12 14H8V9M12 11h4V7"/>',
+  palm: '<path d="M9 22h6l1-4H8zM12 18V9M12 9C9 9 6 10 4 13M12 9c3 0 6 1 8 4M12 9C10 6 8 5 5 5M12 9c2-3 4-4 7-4"/>',
+  fern: '<path d="M9 22h6l1-4H8zM12 18V6M12 18C8 17 6 13 6 9M12 18c4-1 6-5 6-9M12 18C10 15 9 12 9 8M12 18c2-3 3-6 3-10"/>',
+  flowers: '<path d="M9 22h6l1-5H8zM12 17V9M12 17l-4-6M12 17l4-6"/><circle cx="12" cy="7" r="2"/><circle cx="8" cy="9" r="1.7"/><circle cx="16" cy="9" r="1.7"/>',
+  bamboo: '<path d="M9 22h6l1-3H8zM9 19V4M12 19V2M15 19V5M9 9h3M12 6h3M9 14h3M12 12h3"/>',
+  monstera: '<path d="M9 22h6l1-4H8zM12 18V10M12 12C8 12 4 10 3 6c5 0 8 2 9 6zM12 12c4 0 8-2 9-6-5 0-8 2-9 6z"/>',
+  fig: '<path d="M10 22h4l1-4H9zM12 18V8"/><ellipse cx="12" cy="6" rx="3" ry="4"/><ellipse cx="7" cy="10" rx="2.5" ry="3.5" transform="rotate(-30 7 10)"/><ellipse cx="17" cy="10" rx="2.5" ry="3.5" transform="rotate(30 17 10)"/>',
+  fountain: '<path d="M3 19h18M5 19v-3h14v3M12 16v-6M8 10h8M12 10V4M9 6l3-2 3 2"/>',
   house: '<path d="M3 11 12 4l9 7M5 10v10h14V10M10 20v-5h4v5"/>',
   houseHip: '<path d="M2 12 8 5h8l6 7M5 12v8h14v-8M10 20v-4h4v4"/>',
   houseTwo: '<path d="M3 9 12 3l9 6M5 8v13h14V8M9 12h2M13 12h2M9 17h2M13 17h2"/>',
@@ -274,6 +284,17 @@ export class UI {
       return [m, b] as const;
     });
     this.syncs.push(() => btns.forEach(([m, b]) => b.classList.toggle('on', view.transformMode === m && !view.navOnly && !view.cameraSelected && !view.selectedJoint)));
+    const spaceBtn = el('button', '', '');
+    spaceBtn.onclick = () => {
+      view.setSpace(view.transformSpace === 'world' ? 'local' : 'world');
+      this.sync();
+    };
+    this.tools.append(spaceBtn);
+    this.syncs.push(() => {
+      spaceBtn.textContent = view.transformSpace === 'world' ? 'Svet' : 'Objekt';
+      spaceBtn.title = 'Koordinatni sistem za premik in rotacijo: svet ali objekt (X)';
+      spaceBtn.classList.toggle('on', view.transformSpace === 'local');
+    });
     bar.append(this.tools);
     bar.append(this.sceneSwitcher());
     this.root.append(bar);
@@ -594,9 +615,9 @@ export class UI {
     });
     this.addbar.append(packBtn, packPop);
     group('dog', 'Živali', ['dog', 'horse', 'elephant', ...ANIMAL_TYPES]);
-    group('wall', 'Stene in pohištvo', ['wall', 'wallDoor', 'wallWindow', 'table', 'chair', 'bed']);
+    group('wall', 'Stene in pohištvo', ['wall', 'wallDoor', 'wallWindow', 'table', 'chair', 'bed', 'plant', 'plantBig', 'cactus', 'palm', 'fern', 'flowers', 'bamboo', 'monstera', 'fig']);
     group('house', 'Stavbe', ['house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'hayrack', 'shell', 'townhouse', 'block', 'tower', 'church']);
-    group('ferris', 'Znamenitosti', ['eiffel', 'colosseum', 'ferris']);
+    group('ferris', 'Znamenitosti', ['eiffel', 'colosseum', 'ferris', 'fountain']);
     group('car', 'Vozila', ['car', 'hatch', 'suv', 'van', 'bus', 'boat']);
     group('tree', 'Narava', ['tree', 'pine', 'bush', 'hill', 'terrain', 'river']);
     group('road', 'Ceste in dvorišča', ['road', 'bridge', 'yard']);
@@ -1289,6 +1310,7 @@ export class UI {
         store.duplicate(store.selectedId);
       } else if (!e.ctrlKey && !e.metaKey && this.view.mode !== 'frame') {
         if (key === 'h') this.view.setNavOnly(!this.view.navOnly);
+        else if (key === 'x') this.view.setSpace(this.view.transformSpace === 'world' ? 'local' : 'world');
         else if (key === 'w' || key === 'e' || key === 'r') {
           this.view.setNavOnly(false);
           this.view.setTransformMode(key === 'w' ? 'translate' : key === 'e' ? 'rotate' : 'scale');

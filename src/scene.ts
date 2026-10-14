@@ -129,6 +129,7 @@ export class SceneView {
   transformMode: TransformMode = 'translate';
   /** Samo pogled: klik in vlečenje v sceni ne izbereta in ne premakneta predmetov (samo vrtenje, pomik in povečava pogleda). */
   navOnly = false;
+  transformSpace: 'world' | 'local' = 'world';
   /** Izbrana je kompozicijska kamera (namesto objekta). */
   cameraSelected = false;
   /** Izbran sklep figure: gizmo zavrti ta sklep. */
@@ -320,7 +321,7 @@ export class SceneView {
       tc.setSpace('world');
       tc.attach(this.rig);
     } else if (this.store.selectedId) {
-      tc.setSpace('world');
+      tc.setSpace(this.transformSpace);
       const mesh = this.store.mesh(this.store.selectedId);
       if (mesh) {
         tc.setMode(this.transformMode);
@@ -385,8 +386,8 @@ export class SceneView {
   }
 
   setSpace(space: 'world' | 'local'): void {
-    this.transform.setSpace(space);
-    this.invalidate();
+    this.transformSpace = space;
+    this.updateAttachment();
   }
 
   applySnap(): void {

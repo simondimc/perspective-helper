@@ -239,6 +239,7 @@ export const HUMAN_POSES: Record<string, Pose> = {
   'Dejanja: maha': { shoulderR: [0, 0, 150], elbowR: [35, 0, 0], shoulderL: [0, 0, 6] },
   'Dejanja: kaže': { torso: [0, -10, 0], shoulderR: [90, 0, 6], elbowR: [0, 0, 0], shoulderL: [0, 0, 6] },
   'Dejanja: lovi': { torso: [28, 0, 0], neck: [-24, 0, 0], hipR: [70, 0, 6], kneeR: [70, 0, 0], hipL: [-38, 0, 12], kneeL: [6, 0, 0], shoulderR: [115, 0, 6], elbowR: [4, 0, 0], shoulderL: [-45, 0, 38], elbowL: [40, 0, 0] },
+  'Dejanja: ogleduje': { torso: [62, 0, 0], neck: [18, 0, 0], hipL: [14, 0, 4], hipR: [14, 0, 4], kneeL: [18, 0, 0], kneeR: [18, 0, 0], shoulderL: [28, 0, 6], shoulderR: [55, 0, 6], elbowL: [15, 0, 0], elbowR: [35, 0, 0] },
   'Dejanja: moli': { torso: [8, 0, 0], neck: [22, 0, 0], shoulderL: [55, 0, 0], shoulderR: [55, 0, 0], elbowL: [115, 0, 0], elbowR: [115, 0, 0] },
   'Dejanja: lok': { torso: [0, 45, 0], neck: [0, -45, 0], hipL: [-6, 0, 12], hipR: [-6, 0, 12], shoulderL: [90, 0, 4], elbowL: [0, 0, 0], shoulderR: [85, 0, 30], elbowR: [130, 0, 0] },
   // zgodovinsko evropsko sabljanje z rapirjem (desna roka) in bodalom (leva roka); desna noga naprej, trup zasukan v profil

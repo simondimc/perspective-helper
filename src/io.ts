@@ -66,7 +66,7 @@ export function serialize(state: AppState, store: ObjectStore): SceneFile {
   return { version: FILE_VERSION, name: currentSceneName(), ...(requires.length ? { requires } : {}), objects: structuredClone(store.list()), camera: { ...state.camera }, light: { ...state.light }, guides: { ...state.guides }, view: { ...state.view } };
 }
 
-const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair', 'bed', 'house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church', 'shell', 'roads', 'water', 'townhouse', 'block', 'tower', 'car', 'hatch', 'suv', 'van', 'bus', 'eiffel', 'ferris', 'boat', 'colosseum', 'road', 'tree', 'pine', 'bush', 'yard', 'terrain', 'river', 'bridge', 'hill', 'hayrack', ...ANIMAL_TYPES];
+const TYPES: ObjectType[] = ['box', 'sphere', 'cylinder', 'cone', 'figure', 'woman', 'dog', 'horse', 'elephant', 'wall', 'wallDoor', 'wallWindow', 'table', 'chair', 'bed', 'plant', 'plantBig', 'cactus', 'palm', 'fern', 'flowers', 'bamboo', 'monstera', 'fig', 'fountain', 'house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'church', 'shell', 'roads', 'water', 'townhouse', 'block', 'tower', 'car', 'hatch', 'suv', 'van', 'bus', 'eiffel', 'ferris', 'boat', 'colosseum', 'road', 'tree', 'pine', 'bush', 'yard', 'terrain', 'river', 'bridge', 'hill', 'hayrack', ...ANIMAL_TYPES];
 const isTriple = (v: unknown): v is Triple => Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && isFinite(n));
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
