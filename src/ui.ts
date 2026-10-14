@@ -44,6 +44,7 @@ const ICONS: Record<string, string> = {
   woman: '<circle cx="12" cy="5" r="2.5"/><path d="M12 8l-4.5 10h9zM10 18v3M14 18v3"/>',
   table: '<path d="M3 9h18M5 9v11M19 9v11M7 9v6M17 9v6"/>',
   chair: '<path d="M7 4v16M7 12h10v8M17 12v8M7 4h2"/>',
+  bed: '<path d="M3 18V6M3 14h18v4M21 14v-2a3 3 0 0 0-3-3H11v5M6.5 12.5h.01"/>',
   house: '<path d="M3 11 12 4l9 7M5 10v10h14V10M10 20v-5h4v5"/>',
   houseHip: '<path d="M2 12 8 5h8l6 7M5 12v8h14v-8M10 20v-4h4v4"/>',
   houseTwo: '<path d="M3 9 12 3l9 6M5 8v13h14V8M9 12h2M13 12h2M9 17h2M13 17h2"/>',
@@ -593,7 +594,7 @@ export class UI {
     });
     this.addbar.append(packBtn, packPop);
     group('dog', 'Živali', ['dog', 'horse', 'elephant', ...ANIMAL_TYPES]);
-    group('wall', 'Stene in pohištvo', ['wall', 'wallDoor', 'wallWindow', 'table', 'chair']);
+    group('wall', 'Stene in pohištvo', ['wall', 'wallDoor', 'wallWindow', 'table', 'chair', 'bed']);
     group('house', 'Stavbe', ['house', 'houseHip', 'houseTwo', 'cottage', 'barn', 'hayrack', 'shell', 'townhouse', 'block', 'tower', 'church']);
     group('ferris', 'Znamenitosti', ['eiffel', 'colosseum', 'ferris']);
     group('car', 'Vozila', ['car', 'hatch', 'suv', 'van', 'bus', 'boat']);

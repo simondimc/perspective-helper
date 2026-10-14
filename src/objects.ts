@@ -17,7 +17,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
-import { chairGeometry, tableGeometry } from './furniture';
+import { bedGeometry, chairGeometry, tableGeometry } from './furniture';
 import { HOUSE_KINDS, HouseKind, houseGeometry } from './house';
 import { RoadPath, roadsGeometry } from './roads';
 import { terrainGeometry } from './terrain';
@@ -30,7 +30,7 @@ import { isPosable, rigOf } from './rigs';
 import { rigFor } from './clothes';
 import { restSize } from './figure';
 
-export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair' | HouseKind | NatureKind | CityKind | 'roads' | 'water';
+export type BaseType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'figure' | 'woman' | 'dog' | 'horse' | 'elephant' | 'wall' | 'wallDoor' | 'wallWindow' | 'table' | 'chair' | 'bed' | HouseKind | NatureKind | CityKind | 'roads' | 'water';
 export type ObjectType = BaseType | AnimalType;
 
 /** Dodatni parametri pokrajine. */
@@ -106,6 +106,7 @@ export const TYPE_LABELS: Record<ObjectType, string> = {
   wallWindow: 'Stena z oknom',
   table: 'Miza',
   chair: 'Stol',
+  bed: 'Postelja',
   house: 'Hiša',
   houseHip: 'Hiša (štirikapna)',
   houseTwo: 'Hiša z nadstropjem',
@@ -154,6 +155,7 @@ const DEFAULT_SIZE: Partial<Record<ObjectType, Triple>> = {
   wallWindow: [3, 2.6, 0.2],
   table: [1.4, 0.75, 0.8],
   chair: [0.45, 0.9, 0.45],
+  bed: [1.6, 0.9, 2.1],
   house: [8, 5.5, 6],
   houseHip: [8, 5, 6],
   houseTwo: [9, 7.5, 7],
@@ -216,7 +218,7 @@ export function buildEdges(type: ObjectType, size: Triple, pose?: Pose, opening?
     return new EdgesGeometry(buildGeometry(type, size, pose, opening), 1);
   } else if (type === 'dog' || type === 'horse' || type === 'elephant' || isAnimalType(type)) {
     return new EdgesGeometry(rigGeometry(rigOf(type)!, pose ?? {}, size, true), 12);
-  } else if (type === 'table' || type === 'chair' || isHouseOrNature(type)) {
+  } else if (type === 'table' || type === 'chair' || type === 'bed' || isHouseOrNature(type)) {
     return new EdgesGeometry(buildGeometry(type, size), 1);
   } else if (type === 'box' || type === 'wall' || type === 'figure' || type === 'woman') {
     return new EdgesGeometry(buildGeometry(type, size, pose, undefined, terrain), type === 'box' || type === 'wall' ? 1 : 35);
@@ -272,6 +274,8 @@ export function buildGeometry(type: ObjectType, size: Triple, pose?: Pose, openi
       return tableGeometry(size);
     case 'chair':
       return chairGeometry(size);
+    case 'bed':
+      return bedGeometry(size);
     case 'house':
     case 'houseHip':
     case 'houseTwo':
